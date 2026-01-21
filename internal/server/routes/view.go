@@ -27,20 +27,22 @@ func NewViewRoutes(database *db.Database) *ViewRoutes {
 
 // RegisterRoutes registers view routes.
 func (v *ViewRoutes) RegisterRoutes(s *echo.Echo) {
-	s.GET("/", v.handleHome)
-	s.GET("/s/:name", v.handleServiceDetails)
-	s.GET("/settings", v.handleSettings)
-	s.POST("/settings", v.handleSettingsUpdate)
-	s.GET("/onboarding", v.handleOnboarding)
+	authed := s.Group("", RequireAuth)
 
-	s.GET("/deployments", v.handleDeployments)
+	authed.GET("/", v.handleHome)
+	authed.GET("/s/:name", v.handleServiceDetails)
+	authed.GET("/settings", v.handleSettings)
+	authed.POST("/settings", v.handleSettingsUpdate)
+	authed.GET("/onboarding", v.handleOnboarding)
 
-	s.GET("/deployments/filter", v.handleDeploymentFilter)
-	s.GET("/services/stream", v.handleServiceStream)
-	s.GET("/services/grid", v.handleServiceGrid)
-	s.GET("/services/table", v.handleServiceTable)
-	s.GET("/services/filter", v.handleServiceFilter)
-	s.GET("/deployments/stream", v.handleDeploymentStream)
+	authed.GET("/deployments", v.handleDeployments)
+	authed.GET("/deployments/filter", v.handleDeploymentFilter)
+	authed.GET("/services/stream", v.handleServiceStream)
+
+	authed.GET("/services/grid", v.handleServiceGrid)
+	authed.GET("/services/table", v.handleServiceTable)
+	authed.GET("/services/filter", v.handleServiceFilter)
+	authed.GET("/deployments/stream", v.handleDeploymentStream)
 }
 
 func (v *ViewRoutes) handleHome(c echo.Context) error {

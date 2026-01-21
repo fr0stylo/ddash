@@ -1,0 +1,46 @@
+package pages
+
+import "github.com/fr0stylo/ddash/views/base"
+
+templ LoginPage() {
+	@base.Doc("DDash - Sign in") {
+		<main class="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+			<div class="absolute inset-0">
+				<div class="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-gray-200"></div>
+				<div class="absolute -left-32 top-10 h-72 w-72 rounded-full bg-white/70 blur-3xl"></div>
+				<div class="absolute -right-24 bottom-10 h-64 w-64 rounded-full bg-gray-300/40 blur-3xl"></div>
+			</div>
+			<div class="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white/90 p-8 shadow-2xl backdrop-blur">
+				<div class="space-y-3">
+					<div class="text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">DDash</div>
+					<h1 class="text-2xl font-semibold text-gray-900">Sign in to your dashboard</h1>
+					<p class="text-sm text-gray-500">
+						Use your GitHub account to access deploy insights and service health.
+					</p>
+				</div>
+				<div class="mt-8 space-y-4">
+					<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+						Set `DDASH_SESSION_SECRET`, `GITHUB_CLIENT_ID`, and `GITHUB_CLIENT_SECRET` to enable sign-in.
+					</div>
+					<a
+						class="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-200 bg-gray-900 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800"
+						href="/auth/github"
+					>
+						<span class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900">
+							<svg viewBox="0 0 24 24" aria-hidden="true" class="h-4 w-4" fill="currentColor">
+								<path d="M12 0.5C5.58 0.5.5 5.83.5 12.55c0 5.37 3.44 9.91 8.21 11.52.6.11.82-.27.82-.59 0-.29-.01-1.05-.02-2.07-3.34.75-4.04-1.66-4.04-1.66-.55-1.43-1.34-1.81-1.34-1.81-1.1-.77.08-.76.08-.76 1.22.09 1.86 1.29 1.86 1.29 1.08 1.93 2.83 1.37 3.52 1.05.11-.8.42-1.37.76-1.68-2.67-.32-5.48-1.39-5.48-6.19 0-1.37.46-2.48 1.21-3.36-.12-.32-.52-1.61.11-3.36 0 0 .99-.33 3.25 1.28.95-.27 1.96-.41 2.97-.41 1.01 0 2.02.14 2.97.41 2.26-1.61 3.25-1.28 3.25-1.28.63 1.75.23 3.04.11 3.36.76.88 1.21 1.99 1.21 3.36 0 4.81-2.81 5.86-5.49 6.18.43.39.81 1.14.81 2.3 0 1.66-.02 2.99-.02 3.4 0 .33.22.71.83.59 4.77-1.61 8.2-6.15 8.2-11.52C23.5 5.83 18.42.5 12 .5z"/>
+							</svg>
+						</span>
+						<span>Continue with GitHub</span>
+					</a>
+					<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-xs text-gray-500">
+						By continuing, you will be redirected to GitHub to authorize DDash.
+					</div>
+				</div>
+				<div class="mt-8 text-xs text-gray-400">
+					Need access? Ask an admin to add you to the GitHub organization.
+				</div>
+			</div>
+		</main>
+	}
+}

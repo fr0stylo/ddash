@@ -11,6 +11,12 @@ templ ServicePage(service components.ServiceDetail) {
 	@base.Doc(service.Title) {
 		@base.AppHeader(service.Title, service.Description) {
 			@components.BackLink("Back to services", "/")
+			<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/deployments">
+				Deployments
+			</a>
+			<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/settings">
+				Settings
+			</a>
 			<button type="button" class="inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50">
 				Update definition
 			</button>

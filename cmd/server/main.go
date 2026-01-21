@@ -6,6 +6,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/joho/godotenv"
+
 	"github.com/fr0stylo/ddash"
 	"github.com/fr0stylo/ddash/internal/db"
 	"github.com/fr0stylo/ddash/internal/server"
@@ -17,6 +19,10 @@ var publicFS = ddash.PublicFS
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	slog.SetDefault(log)
+
+	if err := godotenv.Load(); err != nil {
+		slog.Debug("No .env file loaded", "error", err)
+	}
 
 	srv := server.New(log, publicFS)
 
@@ -37,6 +43,25 @@ func main() {
 		customWebhookBase = "data"
 	}
 
+	authSecret := os.Getenv("DDASH_SESSION_SECRET")
+	if authSecret == "" {
+		authSecret = "ddash-local-dev"
+	}
+
+	callbackURL := os.Getenv("GITHUB_CALLBACK_URL")
+	if callbackURL == "" {
+		callbackURL = "http://localhost:8080/auth/github/callback"
+	}
+
+	routes.ConfigureAuth(routes.AuthConfig{
+		SessionKey:         authSecret,
+		GitHubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+		GitHubCallbackURL:  callbackURL,
+		SecureCookies:      os.Getenv("DDASH_SECURE_COOKIE") == "true",
+	})
+
+	srv.RegisterRouter(routes.NewAuthRoutes())
 	srv.RegisterRouter(routes.NewViewRoutes(database))
 	srv.RegisterRouter(&routes.APIRoutes{})
 	srv.RegisterRouter(routes.NewWebhookRoutes(
