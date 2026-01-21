@@ -31,8 +31,10 @@ func (v *ViewRoutes) RegisterRoutes(s *echo.Echo) {
 	s.GET("/s/:name", v.handleServiceDetails)
 	s.GET("/settings", v.handleSettings)
 	s.POST("/settings", v.handleSettingsUpdate)
+	s.GET("/onboarding", v.handleOnboarding)
 
 	s.GET("/deployments", v.handleDeployments)
+
 	s.GET("/deployments/filter", v.handleDeploymentFilter)
 	s.GET("/services/stream", v.handleServiceStream)
 	s.GET("/services/grid", v.handleServiceGrid)
@@ -47,7 +49,14 @@ func (v *ViewRoutes) handleHome(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+	if len(rows) == 0 {
+		return c.Redirect(http.StatusFound, "/onboarding")
+	}
 	return c.Render(http.StatusOK, "", pages.HomePage(mapServiceInstances(rows)))
+}
+
+func (v *ViewRoutes) handleOnboarding(c echo.Context) error {
+	return c.Render(http.StatusOK, "", pages.OnboardingPage())
 }
 
 func (v *ViewRoutes) handleDeployments(c echo.Context) error {

@@ -64,13 +64,17 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/onboarding\">Onboarding</a>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
 				return nil
 			})
 			templ_7745c5c3_Err = base.AppHeader("Settings", "Configure defaults every service must provide.").Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <main class=\"mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " <main class=\"mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -118,13 +122,13 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 				},
 			}`, authToken, webhookSecret, enabled, components.RequiredFieldsJSON(requiredFields)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/settings.templ`, Line: 58, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/settings.templ`, Line: 61, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\"><div class=\"flex flex-col gap-8\"><div class=\"fixed right-6 top-6 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-lg\" x-show=\"toast\" x-transition x-text=\"toast\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"><div class=\"flex flex-col gap-8\"><div class=\"fixed right-6 top-6 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-lg\" x-show=\"toast\" x-transition x-text=\"toast\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -140,7 +144,7 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"space-y-4\"><div><label class=\"text-xs font-medium text-gray-500\">Auth token</label> <input type=\"text\" x-model=\"authToken\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"tenant-token\"></div><div><label class=\"text-xs font-medium text-gray-500\">Webhook secret</label> <input type=\"text\" x-model=\"webhookSecret\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"webhook-secret\"></div><label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"enabled\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\"> Enabled</label></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"space-y-4\"><div><label class=\"text-xs font-medium text-gray-500\">Auth token</label> <input type=\"text\" x-model=\"authToken\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"tenant-token\"></div><div><label class=\"text-xs font-medium text-gray-500\">Webhook secret</label> <input type=\"text\" x-model=\"webhookSecret\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"webhook-secret\"></div><label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"enabled\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\"> Enabled</label></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -162,7 +166,7 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<form class=\"space-y-4\" @submit.prevent=\"save()\"><div class=\"text-sm text-gray-600\">These fields are required when creating or editing a service.</div><div class=\"rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4\"><div class=\"flex items-center justify-between\"><div><p class=\"text-sm font-medium text-gray-700\">Field list</p><p class=\"text-xs text-gray-500\">Add or remove fields to match your org standards.</p></div><button type=\"button\" class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" @click=\"requiredFields.push({ label: '', type: 'text' })\">Add field</button></div><div class=\"mt-4 space-y-3\"><template x-for=\"(field, index) in requiredFields\" :key=\"index\"><div class=\"flex flex-col gap-3 sm:flex-row sm:items-center\"><input type=\"text\" x-model=\"field.label\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"Field label\"> <select x-model=\"field.type\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200 sm:w-40\"><option value=\"text\">Text</option> <option value=\"url\">URL</option> <option value=\"select\">Select</option></select> <button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:w-auto\" @click=\"requiredFields.splice(index, 1)\">Remove</button></div></template><div class=\"text-xs text-gray-400\" x-show=\"requiredFields.length === 0\">No fields yet.</div></div></div><div class=\"flex justify-end\"><button type=\"submit\" class=\"inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800\" :disabled=\"saving\"><span x-show=\"!saving\">Save settings</span> <span x-show=\"saving\">Saving...</span></button></div></form>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<form class=\"space-y-4\" @submit.prevent=\"save()\"><div class=\"text-sm text-gray-600\">These fields are required when creating or editing a service.</div><div class=\"rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4\"><div class=\"flex items-center justify-between\"><div><p class=\"text-sm font-medium text-gray-700\">Field list</p><p class=\"text-xs text-gray-500\">Add or remove fields to match your org standards.</p></div><button type=\"button\" class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" @click=\"requiredFields.push({ label: '', type: 'text' })\">Add field</button></div><div class=\"mt-4 space-y-3\"><template x-for=\"(field, index) in requiredFields\" :key=\"index\"><div class=\"flex flex-col gap-3 sm:flex-row sm:items-center\"><input type=\"text\" x-model=\"field.label\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"Field label\"> <select x-model=\"field.type\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200 sm:w-40\"><option value=\"text\">Text</option> <option value=\"url\">URL</option> <option value=\"select\">Select</option></select> <button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:w-auto\" @click=\"requiredFields.splice(index, 1)\">Remove</button></div></template><div class=\"text-xs text-gray-400\" x-show=\"requiredFields.length === 0\">No fields yet.</div></div></div><div class=\"flex justify-end\"><button type=\"submit\" class=\"inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800\" :disabled=\"saving\"><span x-show=\"!saving\">Save settings</span> <span x-show=\"saving\">Saving...</span></button></div></form>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -172,7 +176,7 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></main>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div></main>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
