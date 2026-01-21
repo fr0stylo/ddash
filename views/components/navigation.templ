@@ -1,0 +1,10 @@
+package components
+
+templ BackLink(label string, href string) {
+	<a class="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900" href={ href }>
+		<svg style="width:14px;height:14px" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+			<path fill-rule="evenodd" d="M12.78 15.53a.75.75 0 0 1-1.06 0l-4.75-4.75a.75.75 0 0 1 0-1.06l4.75-4.75a.75.75 0 1 1 1.06 1.06L8.56 10l4.22 4.22a.75.75 0 0 1 0 1.06z" clip-rule="evenodd"/>
+		</svg>
+		<span>{ label }</span>
+	</a>
+}

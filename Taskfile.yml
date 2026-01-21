@@ -1,0 +1,51 @@
+version: '3'
+
+tasks:
+  server:
+    desc: Run the HTTP server
+    cmds:
+      - go run ./cmd/server
+
+  build:
+    desc: Build the server binary
+    cmds:
+      - go build -o tmp/ddash ./cmd/server
+
+  webhooks:send:
+    desc: Send continuous custom webhooks (YAML config)
+    cmds:
+      - go run ./cmd/webhookgenerator -config={{.CONFIG}}
+    vars:
+      CONFIG: cmd/webhookgenerator/sample.yaml
+
+  sqlc:
+    desc: Regenerate sqlc query code
+    cmds:
+      - go tool sqlc generate
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - gofmt -w .
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  link:
+    desc: Run golangci-lint (alias)
+    cmds:
+      - golangci-lint run
+
+  check:
+    desc: Run fmt, vet, and lint
+    deps:
+      - fmt
+      - vet
+      - lint

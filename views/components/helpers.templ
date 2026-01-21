@@ -1,0 +1,22 @@
+package components
+
+import (
+	"net/url"
+	"strings"
+)
+
+func IsURLField(field ServiceField) bool {
+	value := strings.TrimSpace(field.Value)
+	if value == "" {
+		return false
+	}
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil {
+		return false
+	}
+	return parsed.Scheme != "" && parsed.Host != ""
+}
+
+templ HelpersNoop() {
+	<span class="hidden"></span>
+}

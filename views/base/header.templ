@@ -1,0 +1,17 @@
+package base
+
+templ AppHeader(title string, subtitle string) {
+	<header class="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
+		<div class="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 lg:px-8">
+			<div class="min-w-0">
+				<h1 class="truncate text-xl font-semibold tracking-tight text-gray-900">{ title }</h1>
+				if subtitle != "" {
+					<p class="mt-1 text-xs text-gray-500">{ subtitle }</p>
+				}
+			</div>
+			<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+				{ children... }
+			</div>
+		</div>
+	</header>
+}

@@ -1,0 +1,53 @@
+package db
+
+import (
+	"database/sql"
+	"embed"
+	"fmt"
+	"strings"
+
+	"github.com/pressly/goose/v3"
+	// SQLite driver.
+	_ "modernc.org/sqlite"
+
+	"github.com/fr0stylo/ddash/internal/db/queries"
+)
+
+//go:embed migrations/*.sql
+var migrationsFS embed.FS
+
+var driver = "sqlite"
+
+// Database wraps sqlc queries with the shared connection.
+type Database struct {
+	*queries.Queries
+	db *sql.DB
+}
+
+// New opens the SQLite database at the provided path.
+func New(path string, openParams ...string) (*Database, error) {
+	if path == "" {
+		path = "data/default"
+	}
+	db, err := sql.Open(driver, fmt.Sprintf("file:%s.sqlite?_fk=1%s", path, strings.Join(openParams, "&")))
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	goose.SetBaseFS(migrationsFS)
+
+	if err := goose.SetDialect(driver); err != nil {
+		return nil, fmt.Errorf("failed to set goose dialect: %w", err)
+	}
+
+	if err := goose.Up(db, "migrations"); err != nil {
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
+	}
+
+	return &Database{db: db, Queries: queries.New(db)}, nil
+}
+
+// Close closes the underlying database connection.
+func (c *Database) Close() error {
+	return c.db.Close()
+}

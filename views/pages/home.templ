@@ -1,0 +1,134 @@
+package pages
+
+import (
+	"github.com/fr0stylo/ddash/views/base"
+	"github.com/fr0stylo/ddash/views/components"
+)
+
+templ HomePage(services []components.Service) {
+	@base.Doc("DDash - Home") {
+		@components.HomeHeader(components.DefaultStatusOptions(), components.EnvironmentOptions(services))
+
+		<main
+			class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
+			x-data="{
+				query: '',
+				status: 'all',
+				total: 0,
+				visible: 0,
+				normalize(value) { return value.trim().toLowerCase(); },
+				parseQuery() {
+					const filters = { env: '', status: '', team: '' };
+					const terms = [];
+					this.query.split(' ').filter(Boolean).forEach((token) => {
+						const parts = token.split(':');
+						if (parts.length >= 2) {
+							const key = this.normalize(parts[0]);
+							const value = this.normalize(parts.slice(1).join(':'));
+							if (key === 'env' || key === 'environment') {
+								filters.env = value;
+								return;
+							}
+							if (key === 'status') {
+								filters.status = value;
+								return;
+							}
+							if (key === 'team') {
+								filters.team = value;
+								return;
+							}
+						}
+						terms.push(token);
+					});
+					return { text: this.normalize(terms.join(' ')), filters };
+				},
+				matches(name, environment, status, team) {
+					const parsed = this.parseQuery();
+					const environmentValue = this.normalize(environment || '');
+					const nameValue = this.normalize(name || '');
+					const teamValue = this.normalize(team || '');
+					const statusFilter = parsed.filters.status || this.status;
+					const statusMatch = statusFilter === 'all' || status === statusFilter;
+					const envMatch = !parsed.filters.env || environmentValue.includes(parsed.filters.env);
+					const teamMatch = !parsed.filters.team || teamValue.includes(parsed.filters.team);
+					const textMatch = !parsed.text || nameValue.includes(parsed.text) || environmentValue.includes(parsed.text) || teamValue.includes(parsed.text);
+					return statusMatch && envMatch && teamMatch && textMatch;
+				},
+				updateCounts() {
+					const cards = this.$refs.cards ? Array.from(this.$refs.cards.querySelectorAll('[data-service-card]')) : [];
+					this.total = cards.length;
+					this.visible = cards.filter((card) => this.matches(card.dataset.name, card.dataset.environment, card.dataset.status, card.dataset.team)).length;
+				},
+				copyCommand(endpoint) {
+					const target = endpoint || '';
+					const command = target ? `curl -sSL ${target}` : '';
+					if (!command) {
+						return;
+					}
+					if (navigator.clipboard && navigator.clipboard.writeText) {
+						navigator.clipboard.writeText(command);
+						return;
+					}
+					const temp = document.createElement('textarea');
+					temp.value = command;
+					document.body.appendChild(temp);
+					temp.select();
+					document.execCommand('copy');
+					document.body.removeChild(temp);
+				},
+				init() {}
+			}"
+			x-init="updateCounts()"
+			x-effect="updateCounts()"
+		>
+			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<div class="text-sm text-gray-500">
+					Showing <span id="service-count" class="font-medium text-gray-700" x-text="visible">0</span> of
+					<span id="service-total" class="font-medium text-gray-700" x-text="total">0</span> services
+				</div>
+				<div class="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 shadow-sm">
+					<button
+						data-view-button="grid"
+						hx-get="/services/grid"
+						hx-target="#service-results"
+						hx-swap="innerHTML"
+						hx-include="#service-env"
+						class="border-r border-gray-200 px-3 py-1.5 hover:bg-gray-100"
+					>
+						Grid
+					</button>
+					<button
+						data-view-button="table"
+						hx-get="/services/table"
+						hx-target="#service-results"
+						hx-swap="innerHTML"
+						hx-include="#service-env"
+						class="px-3 py-1.5 hover:bg-gray-100"
+					>
+						Table
+					</button>
+				</div>
+			</div>
+
+			<div class="mt-4">
+				@ServiceGridFragment(services)
+			</div>
+
+			@components.HomeFooter()
+		</main>
+	}
+}
+
+templ ServiceGridFragment(services []components.Service) {
+	<div id="service-results" hx-ext="sse" sse-connect="/services/stream?view=grid">
+		<input id="service-view" type="hidden" name="view" value="grid"/>
+		@components.GroupedServiceGrid(services)
+	</div>
+}
+
+templ ServiceTableFragment(services []components.Service) {
+	<div id="service-results" hx-ext="sse" sse-connect="/services/stream?view=table">
+		<input id="service-view" type="hidden" name="view" value="table"/>
+		@components.GroupedServiceTable(services)
+	</div>
+}

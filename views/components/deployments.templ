@@ -1,0 +1,12 @@
+package components
+
+templ DeploymentRowItem(row DeploymentRow) {
+	<tr class="hover:bg-gray-50" data-deployment-row>
+		<td class="px-4 py-3 text-gray-700">{ row.DeployedAt }</td>
+		<td class="px-4 py-3 text-gray-700">{ row.Service }</td>
+		<td class="px-4 py-3 text-gray-700">{ row.Environment }</td>
+		<td class="px-4 py-3">
+			<span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600">{ string(row.Status) }</span>
+		</td>
+	</tr>
+}

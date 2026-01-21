@@ -1,0 +1,6 @@
+base_url: http://localhost:8080
+token: tenant-token
+secret: webhook-secret
+service: payments-api
+environment: production
+interval: 5s

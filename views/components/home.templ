@@ -1,0 +1,38 @@
+package components
+
+templ HomeHeader(statusOptions []StatusOption, environments []EnvironmentOption) {
+	<header class="border-b border-gray-200 bg-white">
+		<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+			<div class="flex flex-col gap-4">
+				<div class="flex items-center justify-between">
+					<div>
+						<h1 class="text-2xl font-semibold text-gray-900">Deployments</h1>
+						<p class="text-sm text-gray-500">Track service deployments across environments.</p>
+					</div>
+					<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/settings">
+						Settings
+					</a>
+				</div>
+				<div class="flex flex-wrap items-center gap-3">
+					<select id="service-env" name="env" class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
+						<option value="all">All environments</option>
+						for _, env := range environments {
+							<option value={ env.Value }>{ env.Label }</option>
+						}
+					</select>
+					<select id="service-status" name="status" class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
+						for _, status := range statusOptions {
+							<option value={ string(status.Value) }>{ status.Label }</option>
+						}
+					</select>
+				</div>
+			</div>
+		</div>
+	</header>
+}
+
+templ HomeFooter() {
+	<div class="mt-6 text-xs text-gray-400">
+		DDash © 2026
+	</div>
+}

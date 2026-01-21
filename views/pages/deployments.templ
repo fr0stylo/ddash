@@ -1,0 +1,123 @@
+package pages
+
+import (
+	"net/url"
+	"strings"
+
+	"github.com/fr0stylo/ddash/views/base"
+	"github.com/fr0stylo/ddash/views/components"
+)
+
+func deploymentEnvironments(rows []components.DeploymentRow) []string {
+	seen := map[string]bool{}
+	options := []string{"all"}
+	for _, row := range rows {
+		env := strings.TrimSpace(row.Environment)
+		if env == "" || seen[env] {
+			continue
+		}
+		seen[env] = true
+		options = append(options, env)
+	}
+	return options
+}
+
+func deploymentServices(rows []components.DeploymentRow) []string {
+	seen := map[string]bool{}
+	options := []string{"all"}
+	for _, row := range rows {
+		service := strings.TrimSpace(row.Service)
+		if service == "" || seen[service] {
+			continue
+		}
+		seen[service] = true
+		options = append(options, service)
+	}
+	return options
+}
+
+func deploymentStreamURL(env string, service string) string {
+	params := url.Values{}
+	if env != "" && env != "all" {
+		params.Set("env", env)
+	}
+	if service != "" && service != "all" {
+		params.Set("service", service)
+	}
+	query := params.Encode()
+	if query == "" {
+		return "/deployments/stream"
+	}
+	return "/deployments/stream?" + query
+}
+
+templ DeploymentsPage(deployments []components.DeploymentRow) {
+	@base.Doc("DDash - Deployments") {
+		@base.AppHeader("Deployments", "Recent deployments across all services.") {
+			@components.BackLink("Back to services", "/")
+		}
+		<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+			<div class="mb-4 flex flex-wrap gap-3">
+				<select
+					id="deployment-env"
+					name="env"
+					hx-get="/deployments/filter"
+					hx-target="#deployment-results"
+					hx-swap="outerHTML"
+					hx-include="#deployment-service"
+					hx-trigger="change"
+					class="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
+				>
+					for _, env := range deploymentEnvironments(deployments) {
+						<option value={ env }>{ env }</option>
+					}
+				</select>
+				<select
+					id="deployment-service"
+					name="service"
+					hx-get="/deployments/filter"
+					hx-target="#deployment-results"
+					hx-swap="outerHTML"
+					hx-include="#deployment-env"
+					hx-trigger="change"
+					class="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
+				>
+					for _, service := range deploymentServices(deployments) {
+						<option value={ service }>{ service }</option>
+					}
+				</select>
+			</div>
+			@DeploymentResults(deployments, "all", "all")
+		</main>
+	}
+}
+
+templ DeploymentResults(deployments []components.DeploymentRow, env string, service string) {
+	<div id="deployment-results" class="rounded-xl border border-gray-200 bg-white shadow-sm" hx-ext="sse" sse-connect={ deploymentStreamURL(env, service) }>
+		<table class="min-w-full divide-y divide-gray-200 text-sm">
+			<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+				<tr>
+					<th class="px-4 py-3 text-left font-medium">Date</th>
+					<th class="px-4 py-3 text-left font-medium">Service</th>
+					<th class="px-4 py-3 text-left font-medium">Environment</th>
+					<th class="px-4 py-3 text-left font-medium">Status</th>
+				</tr>
+			</thead>
+			<tbody
+				id="deployment-rows"
+				class="divide-y divide-gray-100"
+				sse-swap="deployment-new"
+				hx-swap="afterbegin"
+			>
+				if len(deployments) == 0 {
+					<tr>
+						<td class="px-4 py-6 text-center text-sm text-gray-500" colspan="4">No deployments yet.</td>
+					</tr>
+				}
+				for _, deploy := range deployments {
+					@components.DeploymentRowItem(deploy)
+				}
+			</tbody>
+		</table>
+	</div>
+}
