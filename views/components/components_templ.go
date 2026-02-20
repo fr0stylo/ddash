@@ -16,25 +16,32 @@ import (
 type Status string
 
 type Service struct {
-	Title          string
-	Description    string
-	Footer         string
-	Context        string
-	Environment    string
-	Team           string
-	Status         Status
-	LastDeploy     string
-	DeployDuration string
-	Revision       string
-	CommitSHA      string
-	CommitURL      string
-	CommitIndex    int
-	RepoURL        string
-	LogsURL        string
-	Endpoint       string
-	ActionLabel    string
-	ActionKind     string
-	ActionDisabled bool
+	Title           string
+	Description     string
+	Footer          string
+	Context         string
+	Environment     string
+	Team            string
+	Status          Status
+	LastDeploy      string
+	DeployDuration  string
+	Revision        string
+	CommitSHA       string
+	CommitURL       string
+	CommitIndex     int
+	RepoURL         string
+	LogsURL         string
+	Endpoint        string
+	ActionLabel     string
+	ActionKind      string
+	ActionDisabled  bool
+	MissingMetadata int
+	MetadataTags    string
+}
+
+type MetadataFilterOption struct {
+	Value string
+	Label string
 }
 
 type ServiceLink struct {
@@ -43,8 +50,9 @@ type ServiceLink struct {
 }
 
 type ServiceField struct {
-	Label string
-	Value string
+	Label      string
+	Value      string
+	Filterable bool
 }
 
 type ServiceEnvironment struct {
@@ -71,11 +79,12 @@ type DeploymentRecord struct {
 type DeploymentStatus string
 
 type DeploymentRow struct {
-	Service     string
-	Environment string
-	DeployedAt  string
-	Status      DeploymentStatus
-	JobURL      string
+	Service      string
+	Environment  string
+	DeployedAt   string
+	Status       DeploymentStatus
+	JobURL       string
+	MetadataTags string
 }
 
 type ServiceDetail struct {
@@ -84,6 +93,9 @@ type ServiceDetail struct {
 	Context           string
 	Team              string
 	IntegrationType   string
+	MissingMetadata   int
+	MetadataSaveURL   string
+	MetadataFields    []ServiceField
 	CustomFields      []ServiceField
 	OrgRequiredFields []ServiceField
 	Environments      []ServiceEnvironment
@@ -145,7 +157,27 @@ func DefaultStatusOptions() []StatusOption {
 func RequiredFieldsJSON(fields []ServiceField) string {
 	parts := make([]string, 0, len(fields))
 	for _, field := range fields {
-		parts = append(parts, fmt.Sprintf(`{"label":%q,"type":%q}`, field.Label, field.Value))
+		parts = append(parts, fmt.Sprintf(`{"label":%q,"type":%q,"filterable":%t}`, field.Label, field.Value, field.Filterable))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(parts, ","))
+}
+
+func StringListJSON(values []string) string {
+	parts := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%q", value))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(parts, ","))
+}
+
+func ServiceFieldsJSON(fields []ServiceField) string {
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		parts = append(parts, fmt.Sprintf(`{"label":%q,"value":%q}`, field.Label, field.Value))
 	}
 	return fmt.Sprintf("[%s]", strings.Join(parts, ","))
 }

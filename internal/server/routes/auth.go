@@ -2,7 +2,9 @@ package routes
 
 import (
 	"encoding/gob"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -11,13 +13,19 @@ import (
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/github"
 
+	"github.com/fr0stylo/ddash/internal/app/ports"
 	"github.com/fr0stylo/ddash/views/pages"
 )
 
-const authSessionName = "ddash-auth"
+const (
+	authSessionName           = "ddash-auth"
+	authSessionActiveOrgIDKey = "activeOrgID"
+	authSessionUserIDKey      = "userID"
+	githubProvider            = "github"
+	gothSessionName           = "_gothic_session"
+)
 
-const githubProvider = "github"
-
+// AuthConfig configures session and GitHub OAuth authentication.
 type AuthConfig struct {
 	SessionKey         string
 	GitHubClientID     string
@@ -26,7 +34,9 @@ type AuthConfig struct {
 	SecureCookies      bool
 }
 
+// AuthUser is the authenticated user stored in session and context.
 type AuthUser struct {
+	ID        int64
 	Name      string
 	NickName  string
 	Email     string
@@ -37,6 +47,7 @@ func init() {
 	gob.Register(AuthUser{})
 }
 
+// ConfigureAuth initializes session store and GitHub OAuth provider.
 func ConfigureAuth(config AuthConfig) {
 	store := sessions.NewCookieStore([]byte(config.SessionKey))
 	store.Options = &sessions.Options{
@@ -59,12 +70,17 @@ func ConfigureAuth(config AuthConfig) {
 	)
 }
 
-type AuthRoutes struct{}
-
-func NewAuthRoutes() *AuthRoutes {
-	return &AuthRoutes{}
+// AuthRoutes registers authentication endpoints.
+type AuthRoutes struct {
+	store ports.AppStore
 }
 
+// NewAuthRoutes constructs auth routes.
+func NewAuthRoutes(store ports.AppStore) *AuthRoutes {
+	return &AuthRoutes{store: store}
+}
+
+// RegisterRoutes registers authentication routes on the server.
 func (a *AuthRoutes) RegisterRoutes(s *echo.Echo) {
 	s.GET("/login", a.handleLogin)
 	s.GET("/logout", a.handleLogout)
@@ -72,6 +88,7 @@ func (a *AuthRoutes) RegisterRoutes(s *echo.Echo) {
 	s.GET("/auth/:provider/callback", a.handleAuthCallback)
 }
 
+// RequireAuth ensures a request has an authenticated user session.
 func RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		user, ok := authUserFromSession(c)
@@ -93,8 +110,15 @@ func (a *AuthRoutes) handleLogin(c echo.Context) error {
 func (a *AuthRoutes) handleLogout(c echo.Context) error {
 	session, err := gothic.Store.Get(c.Request(), authSessionName)
 	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+			return c.Redirect(http.StatusFound, "/login")
+		}
 		return err
 	}
+	delete(session.Values, authSessionActiveOrgIDKey)
+	delete(session.Values, authSessionUserIDKey)
 	session.Options.MaxAge = -1
 	if err := session.Save(c.Request(), c.Response()); err != nil {
 		return err
@@ -120,25 +144,94 @@ func (a *AuthRoutes) handleAuthCallback(c echo.Context) error {
 	request := addProviderParam(c.Request(), provider)
 	user, err := gothic.CompleteUserAuth(c.Response(), request)
 	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+			return c.Redirect(http.StatusFound, "/login")
+		}
+		return err
+	}
+
+	email := strings.TrimSpace(user.Email)
+	if email == "" {
+		nick := strings.TrimSpace(user.NickName)
+		if nick == "" {
+			nick = "user"
+		}
+		email = nick + "@local.invalid"
+	}
+	nickname := strings.TrimSpace(user.NickName)
+	if nickname == "" {
+		nickname = strings.Split(email, "@")[0]
+	}
+
+	localUser, err := a.store.UpsertUser(request.Context(), ports.UpsertUserInput{
+		GitHubID:  user.UserID,
+		Email:     email,
+		Nickname:  nickname,
+		Name:      user.Name,
+		AvatarURL: user.AvatarURL,
+	})
+	if err != nil {
 		return err
 	}
 
 	session, err := gothic.Store.Get(request, authSessionName)
 	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+			return c.Redirect(http.StatusFound, "/login")
+		}
 		return err
 	}
 	session.Values["user"] = AuthUser{
-		Name:      user.Name,
-		NickName:  user.NickName,
-		Email:     user.Email,
+		ID:        localUser.ID,
+		Name:      firstNonEmpty(user.Name, nickname),
+		NickName:  nickname,
+		Email:     email,
 		AvatarURL: user.AvatarURL,
 	}
+	session.Values[authSessionUserIDKey] = localUser.ID
+	delete(session.Values, authSessionActiveOrgIDKey)
 	if err := session.Save(request, c.Response()); err != nil {
 		return err
 	}
 	return c.Redirect(http.StatusFound, "/")
 }
 
+// GetAuthUserID returns authenticated local user id.
+func GetAuthUserID(c echo.Context) (int64, bool) {
+	if user, ok := GetAuthUser(c); ok && user.ID > 0 {
+		return user.ID, true
+	}
+	session, err := gothic.Store.Get(c.Request(), authSessionName)
+	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+		}
+		return 0, false
+	}
+	value, ok := session.Values[authSessionUserIDKey]
+	if !ok || value == nil {
+		return 0, false
+	}
+	switch v := value.(type) {
+	case int64:
+		return v, true
+	case int:
+		return int64(v), true
+	case int32:
+		return int64(v), true
+	case float64:
+		return int64(v), true
+	default:
+		return 0, false
+	}
+}
+
+// GetAuthUser returns the authenticated user from request context.
 func GetAuthUser(c echo.Context) (AuthUser, bool) {
 	value := c.Get("authUser")
 	if value == nil {
@@ -151,6 +244,53 @@ func GetAuthUser(c echo.Context) (AuthUser, bool) {
 	return user, true
 }
 
+// GetActiveOrganizationID returns selected organization id from session.
+func GetActiveOrganizationID(c echo.Context) (int64, bool) {
+	session, err := gothic.Store.Get(c.Request(), authSessionName)
+	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+		}
+		return 0, false
+	}
+	value, ok := session.Values[authSessionActiveOrgIDKey]
+	if !ok || value == nil {
+		return 0, false
+	}
+
+	switch v := value.(type) {
+	case int64:
+		return v, true
+	case int:
+		return int64(v), true
+	case int32:
+		return int64(v), true
+	case float64:
+		return int64(v), true
+	default:
+		return 0, false
+	}
+}
+
+// SetActiveOrganizationID stores selected organization id in session.
+func SetActiveOrganizationID(c echo.Context, organizationID int64) error {
+	session, err := gothic.Store.Get(c.Request(), authSessionName)
+	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+			return nil
+		}
+		return err
+	}
+	session.Values[authSessionActiveOrgIDKey] = organizationID
+	if err := session.Save(c.Request(), c.Response()); err != nil {
+		return fmt.Errorf("save auth session: %w", err)
+	}
+	return nil
+}
+
 func addProviderParam(request *http.Request, provider string) *http.Request {
 	query := request.URL.Query()
 	query.Set("provider", provider)
@@ -161,6 +301,10 @@ func addProviderParam(request *http.Request, provider string) *http.Request {
 func authUserFromSession(c echo.Context) (AuthUser, bool) {
 	session, err := gothic.Store.Get(c.Request(), authSessionName)
 	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+		}
 		return AuthUser{}, false
 	}
 	value, ok := session.Values["user"]
@@ -172,4 +316,35 @@ func authUserFromSession(c echo.Context) (AuthUser, bool) {
 		return AuthUser{}, false
 	}
 	return user, true
+}
+
+func isInvalidSecureCookieError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "securecookie") && strings.Contains(msg, "not valid")
+}
+
+func clearSessionCookie(c echo.Context, name string) {
+	http.SetCookie(c.Response(), &http.Cookie{
+		Name:     name,
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		Secure:   c.Request().TLS != nil,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

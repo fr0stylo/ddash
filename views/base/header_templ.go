@@ -73,7 +73,7 @@ func AppHeader(title string, subtitle string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/logout\">Sign out</a></div></div></header>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div x-data=\"{ name: '', load() { fetch('/organizations/current').then((response) => response.ok ? response.json() : null).then((payload) => { this.name = payload && payload.name ? payload.name : ''; }).catch(() => {}); }, go() { const next = window.location.pathname + window.location.search; window.location.href = '/organizations?next=' + encodeURIComponent(next); } }\" x-init=\"load()\" class=\"inline-flex items-center gap-2\"><span class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700\" x-show=\"name\" x-text=\"name\"></span> <button type=\"button\" class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" @click=\"go()\">Organizations</button></div><a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/logout\">Sign out</a></div></div></header>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -4,26 +4,25 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
-	"crypto/rand"
+	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	mrand "math/rand"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
+	cdeventsapi "github.com/cdevents/sdk-go/pkg/api"
+	cdeventsv05 "github.com/cdevents/sdk-go/pkg/api/v05"
 	"github.com/spf13/viper"
 )
 
-type payload struct {
-	Name        string `json:"name"`
-	Environment string `json:"environment"`
-	Reference   string `json:"reference"`
-}
+var nonPurlChars = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
 func main() {
 	configPath := flag.String("config", "", "path to YAML config")
@@ -47,10 +46,11 @@ func main() {
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	rng := mrand.New(mrand.NewSource(time.Now().UnixNano()))
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	for {
-		if err := sendWebhook(client, cfg); err != nil {
+		if err := sendWebhook(client, cfg, rng); err != nil {
 			fmt.Fprintln(os.Stderr, "webhook error:", err)
 		}
 		<-ticker.C
@@ -78,14 +78,38 @@ func loadConfig(path string) (config, error) {
 	cfg.Token = strings.TrimSpace(cfg.Token)
 	cfg.Secret = strings.TrimSpace(cfg.Secret)
 	cfg.Service = strings.TrimSpace(cfg.Service)
+	for i := range cfg.Services {
+		cfg.Services[i] = strings.TrimSpace(cfg.Services[i])
+	}
 	cfg.Environment = strings.TrimSpace(cfg.Environment)
+	for i := range cfg.Environments {
+		cfg.Environments[i] = strings.TrimSpace(cfg.Environments[i])
+	}
 	cfg.Interval = strings.TrimSpace(cfg.Interval)
 
-	if cfg.BaseURL == "" || cfg.Token == "" || cfg.Secret == "" || cfg.Service == "" || cfg.Environment == "" {
-		return config{}, fmt.Errorf("config must include base_url, token, secret, service, environment")
+	if cfg.BaseURL == "" || cfg.Token == "" || cfg.Secret == "" {
+		return config{}, fmt.Errorf("config must include base_url, token, and secret")
+	}
+	if len(nonEmpty(cfg.Services)) == 0 && cfg.Service == "" {
+		return config{}, fmt.Errorf("config must include service or services")
+	}
+	if len(nonEmpty(cfg.Environments)) == 0 && cfg.Environment == "" {
+		return config{}, fmt.Errorf("config must include environment or environments")
 	}
 	if cfg.Interval == "" {
 		return config{}, fmt.Errorf("interval must be provided")
+	}
+
+	if len(nonEmpty(cfg.Services)) == 0 {
+		cfg.Services = []string{cfg.Service}
+	} else {
+		cfg.Services = nonEmpty(cfg.Services)
+	}
+
+	if len(nonEmpty(cfg.Environments)) == 0 {
+		cfg.Environments = []string{cfg.Environment}
+	} else {
+		cfg.Environments = nonEmpty(cfg.Environments)
 	}
 
 	parsed, err := time.ParseDuration(cfg.Interval)
@@ -99,23 +123,32 @@ func loadConfig(path string) (config, error) {
 	return cfg, nil
 }
 
-func sendWebhook(client *http.Client, cfg config) error {
+func sendWebhook(client *http.Client, cfg config, rng *mrand.Rand) error {
+	service := cfg.Services[rng.Intn(len(cfg.Services))]
+	environment := cfg.Environments[rng.Intn(len(cfg.Environments))]
+
 	ref, err := randomSHA(7)
 	if err != nil {
 		return fmt.Errorf("failed to generate reference: %w", err)
 	}
 
-	body, err := json.Marshal(payload{
-		Name:        cfg.Service,
-		Environment: cfg.Environment,
-		Reference:   ref,
-	})
+	event, err := cdeventsv05.NewServiceDeployedEvent()
 	if err != nil {
-		return fmt.Errorf("failed to encode payload: %w", err)
+		return fmt.Errorf("failed to create cdevent: %w", err)
+	}
+
+	event.SetSource(strings.TrimRight(cfg.BaseURL, "/"))
+	event.SetSubjectId("service/" + service)
+	event.SetSubjectEnvironment(&cdeventsapi.Reference{Id: environment})
+	event.SetSubjectArtifactId(fmt.Sprintf("pkg:generic/%s@%s", sanitizePurlName(service), ref))
+
+	body, err := cdeventsapi.AsJsonBytes(event)
+	if err != nil {
+		return fmt.Errorf("failed to encode cdevent: %w", err)
 	}
 
 	signature := sign(body, cfg.Secret)
-	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, strings.TrimRight(cfg.BaseURL, "/")+"/webhooks/custom", bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodPost, strings.TrimRight(cfg.BaseURL, "/")+"/webhooks/cdevents", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to build request: %w", err)
 	}
@@ -135,8 +168,17 @@ func sendWebhook(client *http.Client, cfg config) error {
 		return fmt.Errorf("webhook failed: %s", strings.TrimSpace(string(payload)))
 	}
 
-	fmt.Printf("Webhook status: %s (ref %s)\n", resp.Status, ref)
+	fmt.Printf("Webhook status: %s (service=%s env=%s ref=%s)\n", resp.Status, service, environment, ref)
 	return nil
+}
+
+func sanitizePurlName(value string) string {
+	name := nonPurlChars.ReplaceAllString(strings.TrimSpace(value), "-")
+	name = strings.Trim(name, "-.")
+	if name == "" {
+		return "service"
+	}
+	return name
 }
 
 func randomSHA(length int) (string, error) {
@@ -145,11 +187,23 @@ func randomSHA(length int) (string, error) {
 	}
 	bytesNeeded := (length + 1) / 2
 	raw := make([]byte, bytesNeeded)
-	if _, err := rand.Read(raw); err != nil {
+	if _, err := crand.Read(raw); err != nil {
 		return "", err
 	}
 	hexValue := hex.EncodeToString(raw)
 	return hexValue[:length], nil
+}
+
+func nonEmpty(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
 }
 
 func sign(body []byte, secret string) string {

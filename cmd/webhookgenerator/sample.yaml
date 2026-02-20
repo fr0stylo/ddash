@@ -1,6 +1,20 @@
-base_url: http://localhost:8080
-token: tenant-token
-secret: webhook-secret
-service: payments-api
-environment: production
+base_url: https://ddash.maumevicius.cloud/
+token: bb2c736fbc9528c343385fb864694030
+secret: 47b8caef965c37ca4971aee4fb831648dbcdc3f2e52c34e7
+
+services:
+  - payments-api
+  - billing-api
+  - catalog-api
+  - user-api
+  - indexer-api
+  - notification-api
+  - auth-api
+  - search-api
+  - analytics-api
+  - reporting-api
+environments:
+  - dev
+  - staging
+  - production
 interval: 5s

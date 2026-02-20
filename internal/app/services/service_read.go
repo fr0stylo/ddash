@@ -1,0 +1,306 @@
+package services
+
+import (
+	"context"
+	"net/url"
+	"sort"
+	"strings"
+
+	"github.com/fr0stylo/ddash/internal/app/domain"
+	"github.com/fr0stylo/ddash/internal/app/ports"
+)
+
+// ServiceReadService provides read-side projections for service/deployment views.
+type ServiceReadService struct {
+	store ports.ServiceReadStore
+}
+
+// NewServiceReadService constructs a read-side service.
+func NewServiceReadService(store ports.ServiceReadStore) *ServiceReadService {
+	return &ServiceReadService{store: store}
+}
+
+// GetHomeData returns service cards/table data and metadata filter options.
+func (s *ServiceReadService) GetHomeData(ctx context.Context, organizationID int64) ([]domain.Service, []domain.MetadataFilterOption, error) {
+	services, err := s.GetServicesByEnv(ctx, organizationID, "all")
+	if err != nil {
+		return nil, nil, err
+	}
+	metadata, err := s.loadMetadataFilterData(ctx, organizationID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return services, metadata.Options, nil
+}
+
+// GetServicesByEnv returns service rows enriched with metadata badges/tags.
+func (s *ServiceReadService) GetServicesByEnv(ctx context.Context, organizationID int64, env string) ([]domain.Service, error) {
+	services, err := s.store.ListServiceInstances(ctx, organizationID, env)
+	if err != nil {
+		return nil, err
+	}
+	metadata, err := s.loadMetadataFilterData(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return applyMetadataToServices(services, metadata), nil
+}
+
+// GetDeployments returns deployment rows enriched with metadata tags.
+func (s *ServiceReadService) GetDeployments(ctx context.Context, organizationID int64, env, service string) ([]domain.DeploymentRow, []domain.MetadataFilterOption, error) {
+	rows, err := s.store.ListDeployments(ctx, organizationID, env, service)
+	if err != nil {
+		return nil, nil, err
+	}
+	metadata, err := s.loadMetadataFilterData(ctx, organizationID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return applyMetadataToDeployments(rows, metadata), metadata.Options, nil
+}
+
+// GetServiceDetail returns a fully composed service details view model.
+func (s *ServiceReadService) GetServiceDetail(ctx context.Context, organizationID int64, name string) (domain.ServiceDetail, error) {
+	service, err := s.store.GetServiceLatest(ctx, organizationID, name)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+
+	requiredFields, err := s.store.ListRequiredFields(ctx, organizationID)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+	metadataRows, err := s.store.ListServiceMetadata(ctx, organizationID, name)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+	serviceEnvs, err := s.store.ListServiceEnvironments(ctx, organizationID, name)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+	envPriorities, err := s.store.ListEnvironmentPriorities(ctx, organizationID)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+	historyRows, err := s.store.ListDeploymentHistory(ctx, organizationID, name, 10)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+
+	metadataFields := buildServiceMetadataFields(requiredFields, metadataRows)
+	missingMetadata := 0
+	for _, field := range metadataFields {
+		if strings.TrimSpace(field.Value) == "" {
+			missingMetadata++
+		}
+	}
+
+	applyEnvironmentPriorityOrder(serviceEnvs, envPriorities)
+
+	return domain.ServiceDetail{
+		Title:             service.Name,
+		Description:       "",
+		IntegrationType:   service.IntegrationType,
+		MissingMetadata:   missingMetadata,
+		MetadataSaveURL:   "/s/" + url.PathEscape(name) + "/metadata",
+		MetadataFields:    metadataFields,
+		OrgRequiredFields: mapRequiredFields(requiredFields),
+		Environments:      serviceEnvs,
+		DeploymentHistory: historyRows,
+	}, nil
+}
+
+type metadataFilterData struct {
+	Options          []domain.MetadataFilterOption
+	MissingByService map[string]int
+	TagsByService    map[string]string
+}
+
+func (s *ServiceReadService) loadMetadataFilterData(ctx context.Context, organizationID int64) (metadataFilterData, error) {
+	requiredRows, err := s.store.ListRequiredFields(ctx, organizationID)
+	if err != nil {
+		return metadataFilterData{}, err
+	}
+
+	required := map[string]bool{}
+	filterable := map[string]string{}
+	for _, row := range requiredRows {
+		label := strings.ToLower(strings.TrimSpace(row.Label))
+		if label == "" {
+			continue
+		}
+		required[label] = true
+		if row.Filterable {
+			filterable[label] = strings.TrimSpace(row.Label)
+		}
+	}
+
+	metadataRows, err := s.store.ListServiceMetadataValuesByOrganization(ctx, organizationID)
+	if err != nil {
+		return metadataFilterData{}, err
+	}
+
+	filledByService := map[string]map[string]bool{}
+	tagsByService := map[string]map[string]bool{}
+	tagLabels := map[string]string{}
+	for _, row := range metadataRows {
+		serviceName := strings.ToLower(strings.TrimSpace(row.ServiceName))
+		label := strings.ToLower(strings.TrimSpace(row.Label))
+		value := strings.TrimSpace(row.Value)
+		if serviceName == "" || label == "" || value == "" {
+			continue
+		}
+		if !required[label] {
+			continue
+		}
+		if _, ok := filledByService[serviceName]; !ok {
+			filledByService[serviceName] = map[string]bool{}
+		}
+		filledByService[serviceName][label] = true
+
+		displayLabel, ok := filterable[label]
+		if !ok {
+			continue
+		}
+		tag := metadataTagValue(label, value)
+		if tag == "" {
+			continue
+		}
+		if _, ok := tagsByService[serviceName]; !ok {
+			tagsByService[serviceName] = map[string]bool{}
+		}
+		tagsByService[serviceName][tag] = true
+		tagLabels[tag] = displayLabel + ": " + value
+	}
+
+	missingByService := map[string]int{}
+	requiredCount := len(required)
+	if requiredCount > 0 {
+		for serviceName, filled := range filledByService {
+			missing := requiredCount - len(filled)
+			if missing < 0 {
+				missing = 0
+			}
+			missingByService[serviceName] = missing
+		}
+	}
+
+	options := []domain.MetadataFilterOption{{Value: "all", Label: "All metadata tags"}}
+	tagKeys := make([]string, 0, len(tagLabels))
+	for tag := range tagLabels {
+		tagKeys = append(tagKeys, tag)
+	}
+	sort.Strings(tagKeys)
+	for _, tag := range tagKeys {
+		options = append(options, domain.MetadataFilterOption{Value: tag, Label: tagLabels[tag]})
+	}
+
+	normalizedTags := map[string]string{}
+	for serviceName, tags := range tagsByService {
+		keys := make([]string, 0, len(tags))
+		for tag := range tags {
+			keys = append(keys, tag)
+		}
+		sort.Strings(keys)
+		normalizedTags[serviceName] = "|" + strings.Join(keys, "|") + "|"
+	}
+
+	return metadataFilterData{Options: options, MissingByService: missingByService, TagsByService: normalizedTags}, nil
+}
+
+func applyMetadataToServices(services []domain.Service, metadataData metadataFilterData) []domain.Service {
+	for i := range services {
+		serviceName := strings.ToLower(strings.TrimSpace(services[i].Title))
+		services[i].MissingMetadata = metadataData.MissingByService[serviceName]
+		services[i].MetadataTags = metadataData.TagsByService[serviceName]
+	}
+	return services
+}
+
+func applyMetadataToDeployments(rows []domain.DeploymentRow, metadataData metadataFilterData) []domain.DeploymentRow {
+	for i := range rows {
+		serviceName := strings.ToLower(strings.TrimSpace(rows[i].Service))
+		rows[i].MetadataTags = metadataData.TagsByService[serviceName]
+	}
+	return rows
+}
+
+func metadataTagValue(label, value string) string {
+	label = strings.TrimSpace(strings.ToLower(label))
+	value = strings.TrimSpace(strings.ToLower(value))
+	if label == "" || value == "" {
+		return ""
+	}
+	return label + ":" + value
+}
+
+func mapRequiredFields(rows []ports.RequiredField) []domain.MetadataField {
+	fields := make([]domain.MetadataField, 0, len(rows))
+	for _, row := range rows {
+		fields = append(fields, domain.MetadataField{Label: row.Label, Value: "Missing", Filterable: row.Filterable})
+	}
+	return fields
+}
+
+func buildServiceMetadataFields(required []ports.RequiredField, existing []ports.MetadataValue) []domain.MetadataField {
+	values := map[string]string{}
+	for _, row := range existing {
+		label := strings.TrimSpace(row.Label)
+		if label != "" {
+			values[strings.ToLower(label)] = strings.TrimSpace(row.Value)
+		}
+	}
+	fields := make([]domain.MetadataField, 0, len(required))
+	for _, req := range required {
+		label := strings.TrimSpace(req.Label)
+		if label == "" {
+			continue
+		}
+		fields = append(fields, domain.MetadataField{Label: label, Value: strings.TrimSpace(values[strings.ToLower(label)])})
+	}
+	return fields
+}
+
+func normalizeEnvironmentOrderInput(values []string) []string {
+	seen := map[string]bool{}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		key := strings.ToLower(value)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, value)
+	}
+	return result
+}
+
+func applyEnvironmentPriorityOrder(environments []domain.ServiceEnvironment, orderedNames []string) {
+	priority := map[string]int{}
+	for i, name := range normalizeEnvironmentOrderInput(orderedNames) {
+		priority[strings.ToLower(name)] = i
+	}
+	sort.SliceStable(environments, func(i, j int) bool {
+		left := strings.ToLower(strings.TrimSpace(environments[i].Name))
+		right := strings.ToLower(strings.TrimSpace(environments[j].Name))
+		leftRank, leftKnown := priority[left]
+		rightRank, rightKnown := priority[right]
+		switch {
+		case leftKnown && rightKnown:
+			if leftRank != rightRank {
+				return leftRank < rightRank
+			}
+			return left < right
+		case leftKnown:
+			return true
+		case rightKnown:
+			return false
+		default:
+			return left < right
+		}
+	})
+}

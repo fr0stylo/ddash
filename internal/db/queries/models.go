@@ -6,6 +6,7 @@ package queries
 
 import (
 	"database/sql"
+	"time"
 )
 
 type Commit struct {
@@ -35,6 +36,21 @@ type Environment struct {
 	Name string
 }
 
+type EventStore struct {
+	Seq            int64
+	OrganizationID int64
+	EventID        string
+	EventType      string
+	EventSource    string
+	EventTimestamp string
+	SubjectID      string
+	SubjectSource  sql.NullString
+	SubjectType    string
+	ChainID        sql.NullString
+	RawEventJson   string
+	IngestedAt     time.Time
+}
+
 type Organization struct {
 	ID            int64
 	Name          string
@@ -45,6 +61,42 @@ type Organization struct {
 	UpdatedAt     sql.NullTime
 }
 
+type OrganizationEnvironmentPriority struct {
+	ID             int64
+	OrganizationID int64
+	Environment    string
+	SortOrder      int64
+	CreatedAt      sql.NullTime
+	UpdatedAt      sql.NullTime
+}
+
+type OrganizationFeature struct {
+	ID             int64
+	OrganizationID int64
+	FeatureKey     string
+	IsEnabled      int64
+	CreatedAt      sql.NullTime
+	UpdatedAt      sql.NullTime
+}
+
+type OrganizationMember struct {
+	ID             int64
+	OrganizationID int64
+	UserID         int64
+	Role           string
+	CreatedAt      sql.NullTime
+	UpdatedAt      sql.NullTime
+}
+
+type OrganizationPreference struct {
+	ID              int64
+	OrganizationID  int64
+	PreferenceKey   string
+	PreferenceValue string
+	CreatedAt       sql.NullTime
+	UpdatedAt       sql.NullTime
+}
+
 type OrganizationRequiredField struct {
 	ID             int64
 	OrganizationID int64
@@ -53,6 +105,7 @@ type OrganizationRequiredField struct {
 	SortOrder      int64
 	CreatedAt      sql.NullTime
 	UpdatedAt      sql.NullTime
+	IsFilterable   int64
 }
 
 type Release struct {
@@ -107,4 +160,25 @@ type ServiceInstance struct {
 	ActionDisabled        int64
 	CreatedAt             sql.NullTime
 	UpdatedAt             sql.NullTime
+}
+
+type ServiceMetadatum struct {
+	ID             int64
+	OrganizationID int64
+	ServiceName    string
+	Label          string
+	Value          string
+	CreatedAt      sql.NullTime
+	UpdatedAt      sql.NullTime
+}
+
+type User struct {
+	ID        int64
+	GithubID  sql.NullString
+	Email     string
+	Nickname  string
+	Name      sql.NullString
+	AvatarUrl sql.NullString
+	CreatedAt sql.NullTime
+	UpdatedAt sql.NullTime
 }

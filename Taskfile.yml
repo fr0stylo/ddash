@@ -18,6 +18,51 @@ tasks:
     vars:
       CONFIG: cmd/webhookgenerator/sample.yaml
 
+  events:backfill:
+    desc: Backfill legacy deployments into CDEvents event store
+    cmds:
+      - go run ./cmd/eventbackfill -db={{.DB}} {{.FLAGS}}
+    vars:
+      DB: ""
+      FLAGS: ""
+
+  events:seed:
+    desc: Seed sample CDEvents service data
+    cmds:
+      - sqlite3 {{.DB}}.sqlite < {{.SEED_FILE}}
+    vars:
+      DB: data/default
+      SEED_FILE: internal/db/seeds/sample_services_event_store.sql
+
+  remote:install-systemd:
+    desc: Install DDash as a systemd service on remote host
+    cmds:
+      - sudo ./scripts/remote/install-systemd.sh --service-name {{.SERVICE}} --app-dir {{.APP_DIR}} --user {{.USER}} --group {{.GROUP}} --env-file {{.ENV_FILE}}
+    vars:
+      SERVICE: ddash
+      APP_DIR: /opt/ddash
+      USER: ddash
+      GROUP: ddash
+      ENV_FILE: /etc/ddash/ddash.env
+
+  remote:deploy:
+    desc: Build locally and deploy binary + .env over SSH (rsync)
+    cmds:
+      - go build -o tmp/ddash ./cmd/server
+      - ssh {{.SSH_TARGET}} "mkdir -p /tmp/ddash-deploy-{{.SERVICE}}"
+      - rsync -az tmp/ddash {{.SSH_TARGET}}:/tmp/ddash-deploy-{{.SERVICE}}/ddash
+      - rsync -az .env.prod {{.SSH_TARGET}}:/tmp/ddash-deploy-{{.SERVICE}}/.env
+      - rsync -az scripts/remote/install-systemd.sh {{.SSH_TARGET}}:/tmp/ddash-deploy-{{.SERVICE}}/install-systemd.sh
+      - ssh {{.SSH_TARGET}} "chmod +x /tmp/ddash-deploy-{{.SERVICE}}/install-systemd.sh && sudo mkdir -p {{.APP_DIR}} {{.APP_DIR}}/tmp {{.APP_DIR}}/scripts/remote && sudo install -m 0755 /tmp/ddash-deploy-{{.SERVICE}}/ddash {{.APP_DIR}}/tmp/ddash && sudo install -m 0755 /tmp/ddash-deploy-{{.SERVICE}}/install-systemd.sh {{.APP_DIR}}/scripts/remote/install-systemd.sh && sudo mkdir -p \"$(dirname {{.ENV_FILE}})\" && sudo install -m 0640 /tmp/ddash-deploy-{{.SERVICE}}/.env {{.ENV_FILE}} && sudo {{.APP_DIR}}/scripts/remote/install-systemd.sh --service-name {{.SERVICE}} --app-dir {{.APP_DIR}} --user {{.SERVICE_USER}} --group {{.SERVICE_GROUP}} --env-file {{.ENV_FILE}} && sudo systemctl restart {{.SERVICE}}"
+      - ssh {{.SSH_TARGET}} "rm -rf /tmp/ddash-deploy-{{.SERVICE}}"
+    vars:
+      SSH_TARGET: hetzner
+      APP_DIR: /opt/ddash
+      SERVICE: ddash
+      SERVICE_USER: ddash
+      SERVICE_GROUP: ddash
+      ENV_FILE: /etc/ddash/ddash.env
+
   sqlc:
     desc: Regenerate sqlc query code
     cmds:
@@ -38,14 +83,28 @@ tasks:
     cmds:
       - golangci-lint run
 
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./...
+
   link:
     desc: Run golangci-lint (alias)
     cmds:
       - golangci-lint run
 
+  generate:
+    desc: Run all code generation tasks
+    deps:
+      - sqlc
+    cmds:
+      - templ generate
+      - npx @tailwindcss/cli -i ./assets/styles.css -o ./public/styles.css
+
   check:
-    desc: Run fmt, vet, and lint
+    desc: Run fmt, vet, lint, and tests
     deps:
       - fmt
       - vet
       - lint
+      - test

@@ -11,6 +11,14 @@ templ AppHeader(title string, subtitle string) {
 			</div>
 			<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
 				{ children... }
+				<div
+					x-data="{ name: '', load() { fetch('/organizations/current').then((response) => response.ok ? response.json() : null).then((payload) => { this.name = payload && payload.name ? payload.name : ''; }).catch(() => {}); }, go() { const next = window.location.pathname + window.location.search; window.location.href = '/organizations?next=' + encodeURIComponent(next); } }"
+					x-init="load()"
+					class="inline-flex items-center gap-2"
+				>
+					<span class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700" x-show="name" x-text="name"></span>
+					<button type="button" class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" @click="go()">Organizations</button>
+				</div>
 				<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/logout">
 					Sign out
 				</a>

@@ -1,36 +1,38 @@
 package routes
 
 import (
+	"net/http"
+
 	"github.com/labstack/echo/v4"
 
+	"github.com/fr0stylo/ddash/internal/app/ports"
 	customwebhook "github.com/fr0stylo/ddash/internal/webhooks/custom"
-	githubwebhook "github.com/fr0stylo/ddash/internal/webhooks/github"
 )
 
 // WebhookRoutes registers webhook endpoints.
 type WebhookRoutes struct {
 	custom *customwebhook.Handler
-	github *githubwebhook.Handler
 }
 
 // NewWebhookRoutes constructs webhook routes.
-func NewWebhookRoutes(githubSecret []byte, baseDir string) *WebhookRoutes {
+func NewWebhookRoutes(storeFactory ports.IngestionStoreFactory) *WebhookRoutes {
 	return &WebhookRoutes{
-		custom: customwebhook.NewHandler(baseDir),
-		github: githubwebhook.NewHandler(githubSecret),
+		custom: customwebhook.NewHandler(storeFactory),
 	}
 }
 
 // RegisterRoutes registers webhook endpoints.
 func (w *WebhookRoutes) RegisterRoutes(s *echo.Echo) {
-	s.POST("/webhooks/github", w.handleGitHubWebhook)
-	s.POST("/webhooks/custom", w.handleCustomWebhook)
-}
-
-func (w *WebhookRoutes) handleGitHubWebhook(c echo.Context) error {
-	return w.github.Handle(c.Response(), c.Request())
+	s.POST("/webhooks/custom", w.handleLegacyCustomWebhook)
+	s.POST("/webhooks/cdevents", w.handleCustomWebhook)
 }
 
 func (w *WebhookRoutes) handleCustomWebhook(c echo.Context) error {
 	return w.custom.Handle(c.Response(), c.Request())
+}
+
+func (w *WebhookRoutes) handleLegacyCustomWebhook(c echo.Context) error {
+	return c.JSON(http.StatusGone, map[string]string{
+		"error": "legacy custom payload ingestion removed; send CDEvents delivery events to /webhooks/cdevents",
+	})
 }

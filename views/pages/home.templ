@@ -5,20 +5,22 @@ import (
 	"github.com/fr0stylo/ddash/views/components"
 )
 
-templ HomePage(services []components.Service) {
+templ HomePage(services []components.Service, metadataOptions []components.MetadataFilterOption, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, showMetadataFilters bool, enableSSELiveUpdates bool, defaultDashboardView string, statusSemanticsMode string, showOnboardingHints bool) {
 	@base.Doc("DDash - Home") {
-		@components.HomeHeader(components.DefaultStatusOptions(), components.EnvironmentOptions(services))
+		@components.HomeHeader(components.DefaultStatusOptions(), showSyncStatus, showOnboardingHints)
 
 		<main
 			class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
-			x-data="{
+				x-data="{
 				query: '',
 				status: 'all',
+				metadata: 'all',
+				metadataTag: 'all',
 				total: 0,
 				visible: 0,
 				normalize(value) { return value.trim().toLowerCase(); },
 				parseQuery() {
-					const filters = { env: '', status: '', team: '' };
+					const filters = { env: '', status: '', team: '', metadata: '' };
 					const terms = [];
 					this.query.split(' ').filter(Boolean).forEach((token) => {
 						const parts = token.split(':');
@@ -37,27 +39,45 @@ templ HomePage(services []components.Service) {
 								filters.team = value;
 								return;
 							}
+							if (key === 'metadata') {
+								filters.metadata = value;
+								return;
+							}
 						}
 						terms.push(token);
 					});
 					return { text: this.normalize(terms.join(' ')), filters };
 				},
-				matches(name, environment, status, team) {
+				matches(name, environment, status, team, missingMetadata, metadataTags) {
 					const parsed = this.parseQuery();
 					const environmentValue = this.normalize(environment || '');
 					const nameValue = this.normalize(name || '');
 					const teamValue = this.normalize(team || '');
+					const missing = Number(missingMetadata || 0);
+					const tags = (metadataTags || '').toLowerCase();
 					const statusFilter = parsed.filters.status || this.status;
+					const metadataFilter = parsed.filters.metadata || this.metadata;
 					const statusMatch = statusFilter === 'all' || status === statusFilter;
+					const metadataMatch = metadataFilter === 'all'
+						|| (metadataFilter === 'missing' && missing > 0)
+						|| (metadataFilter === 'complete' && missing === 0);
+					const tagMatch = this.metadataTag === 'all' || tags.includes('|' + this.metadataTag.toLowerCase() + '|');
 					const envMatch = !parsed.filters.env || environmentValue.includes(parsed.filters.env);
 					const teamMatch = !parsed.filters.team || teamValue.includes(parsed.filters.team);
 					const textMatch = !parsed.text || nameValue.includes(parsed.text) || environmentValue.includes(parsed.text) || teamValue.includes(parsed.text);
-					return statusMatch && envMatch && teamMatch && textMatch;
+					return statusMatch && metadataMatch && tagMatch && envMatch && teamMatch && textMatch;
 				},
 				updateCounts() {
-					const cards = this.$refs.cards ? Array.from(this.$refs.cards.querySelectorAll('[data-service-card]')) : [];
-					this.total = cards.length;
-					this.visible = cards.filter((card) => this.matches(card.dataset.name, card.dataset.environment, card.dataset.status, card.dataset.team)).length;
+					if (!this.$refs.cards) {
+						this.total = 0;
+						this.visible = 0;
+						return;
+					}
+					const cards = Array.from(this.$refs.cards.querySelectorAll('[data-service-card]'));
+					const rows = Array.from(this.$refs.cards.querySelectorAll('[data-service-row]'));
+					const items = cards.length > 0 ? cards : rows;
+					this.total = items.length;
+					this.visible = items.filter((item) => this.matches(item.dataset.name, item.dataset.environment, item.dataset.status, item.dataset.team, item.dataset.missingMetadata, item.dataset.metadata)).length;
 				},
 				copyCommand(endpoint) {
 					const target = endpoint || '';
@@ -78,6 +98,7 @@ templ HomePage(services []components.Service) {
 				},
 				init() {}
 			}"
+			x-on:ddash-filter-metadata.window="metadata = $event.detail.mode || 'all'; updateCounts()"
 			x-init="updateCounts()"
 			x-effect="updateCounts()"
 		>
@@ -92,7 +113,7 @@ templ HomePage(services []components.Service) {
 						hx-get="/services/grid"
 						hx-target="#service-results"
 						hx-swap="innerHTML"
-						hx-include="#service-env"
+						hx-include="#service-view"
 						class="border-r border-gray-200 px-3 py-1.5 hover:bg-gray-100"
 					>
 						Grid
@@ -102,16 +123,32 @@ templ HomePage(services []components.Service) {
 						hx-get="/services/table"
 						hx-target="#service-results"
 						hx-swap="innerHTML"
-						hx-include="#service-env"
+						hx-include="#service-view"
 						class="px-3 py-1.5 hover:bg-gray-100"
 					>
 						Table
 					</button>
 				</div>
+				if showMetadataFilters {
+					<div class="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-sm">
+						<button type="button" class="border-r border-gray-200 px-3 py-1.5 hover:bg-gray-50" @click="metadata='all'; updateCounts()">All metadata</button>
+						<button type="button" class="border-r border-gray-200 px-3 py-1.5 hover:bg-amber-50" @click="metadata='missing'; updateCounts()">Missing metadata</button>
+						<button type="button" class="px-3 py-1.5 hover:bg-emerald-50" @click="metadata='complete'; updateCounts()">Complete metadata</button>
+					</div>
+					<select x-model="metadataTag" @change="updateCounts()" class="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
+						for _, option := range metadataOptions {
+							<option value={ option.Value }>{ option.Label }</option>
+						}
+					</select>
+				}
 			</div>
 
-			<div class="mt-4">
-				@ServiceGridFragment(services)
+			<div class="mt-4" x-ref="cards">
+				if defaultDashboardView == "table" {
+					@ServiceTableFragment(services, showSyncStatus, showMetadataBadges, showEnvironmentColumn, enableSSELiveUpdates, statusSemanticsMode)
+				} else {
+					@ServiceGridFragment(services, showSyncStatus, showMetadataBadges, showEnvironmentColumn, enableSSELiveUpdates, statusSemanticsMode)
+				}
 			</div>
 
 			@components.HomeFooter()
@@ -119,16 +156,16 @@ templ HomePage(services []components.Service) {
 	}
 }
 
-templ ServiceGridFragment(services []components.Service) {
-	<div id="service-results" hx-ext="sse" sse-connect="/services/stream?view=grid">
+templ ServiceGridFragment(services []components.Service, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, enableSSELiveUpdates bool, statusSemanticsMode string) {
+	<div id="service-results" if enableSSELiveUpdates { hx-ext="sse" sse-connect="/services/stream?view=grid" }>
 		<input id="service-view" type="hidden" name="view" value="grid"/>
-		@components.GroupedServiceGrid(services)
+		@components.GroupedServiceGrid(services, showSyncStatus, showMetadataBadges, showEnvironmentColumn, statusSemanticsMode)
 	</div>
 }
 
-templ ServiceTableFragment(services []components.Service) {
-	<div id="service-results" hx-ext="sse" sse-connect="/services/stream?view=table">
+templ ServiceTableFragment(services []components.Service, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, enableSSELiveUpdates bool, statusSemanticsMode string) {
+	<div id="service-results" if enableSSELiveUpdates { hx-ext="sse" sse-connect="/services/stream?view=table" }>
 		<input id="service-view" type="hidden" name="view" value="table"/>
-		@components.GroupedServiceTable(services)
+		@components.GroupedServiceTable(services, showSyncStatus, showMetadataBadges, showEnvironmentColumn, statusSemanticsMode)
 	</div>
 }

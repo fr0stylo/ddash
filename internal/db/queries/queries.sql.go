@@ -10,101 +10,99 @@ import (
 	"database/sql"
 )
 
-const createDeployment = `-- name: CreateDeployment :one
-INSERT INTO deployments (service_id, environment_id, deployed_at, status, job_url, release_ref, release_url, commit_count)
-VALUES (?1, ?2, ?3, ?4,
-        ?5, ?6, ?7, ?8)
-RETURNING id, service_id, environment_id, deployed_at, status, job_url, release_ref, release_url, commit_count, created_at
+const appendEventStore = `-- name: AppendEventStore :exec
+INSERT INTO event_store (
+  organization_id,
+  event_id,
+  event_type,
+  event_source,
+  event_timestamp,
+  subject_id,
+  subject_source,
+  subject_type,
+  chain_id,
+  raw_event_json
+)
+VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5,
+  ?6,
+  ?7,
+  ?8,
+  ?9,
+  ?10
+)
+ON CONFLICT(organization_id, event_source, event_id) DO NOTHING
 `
 
-type CreateDeploymentParams struct {
-	ServiceID     int64
-	EnvironmentID int64
-	DeployedAt    string
-	Status        string
-	JobUrl        sql.NullString
-	ReleaseRef    sql.NullString
-	ReleaseUrl    sql.NullString
-	CommitCount   sql.NullInt64
+type AppendEventStoreParams struct {
+	OrganizationID int64
+	EventID        string
+	EventType      string
+	EventSource    string
+	EventTimestamp string
+	SubjectID      string
+	SubjectSource  sql.NullString
+	SubjectType    string
+	ChainID        sql.NullString
+	RawEventJson   string
 }
 
-func (q *Queries) CreateDeployment(ctx context.Context, arg CreateDeploymentParams) (Deployment, error) {
-	row := q.db.QueryRowContext(ctx, createDeployment,
-		arg.ServiceID,
-		arg.EnvironmentID,
-		arg.DeployedAt,
-		arg.Status,
-		arg.JobUrl,
-		arg.ReleaseRef,
-		arg.ReleaseUrl,
-		arg.CommitCount,
+func (q *Queries) AppendEventStore(ctx context.Context, arg AppendEventStoreParams) error {
+	_, err := q.db.ExecContext(ctx, appendEventStore,
+		arg.OrganizationID,
+		arg.EventID,
+		arg.EventType,
+		arg.EventSource,
+		arg.EventTimestamp,
+		arg.SubjectID,
+		arg.SubjectSource,
+		arg.SubjectType,
+		arg.ChainID,
+		arg.RawEventJson,
 	)
-	var i Deployment
-	err := row.Scan(
-		&i.ID,
-		&i.ServiceID,
-		&i.EnvironmentID,
-		&i.DeployedAt,
-		&i.Status,
-		&i.JobUrl,
-		&i.ReleaseRef,
-		&i.ReleaseUrl,
-		&i.CommitCount,
-		&i.CreatedAt,
-	)
-	return i, err
+	return err
 }
 
-const createDeploymentSimple = `-- name: CreateDeploymentSimple :one
-INSERT INTO deployments (service_id, environment_id, deployed_at, status, release_ref)
-VALUES (?1, ?2, ?3, ?4,
-        ?5)
-RETURNING id, service_id, environment_id, deployed_at, status, job_url, release_ref, release_url, commit_count, created_at
+const countEventStore = `-- name: CountEventStore :one
+SELECT COUNT(*)
+FROM event_store
 `
 
-type CreateDeploymentSimpleParams struct {
-	ServiceID     int64
-	EnvironmentID int64
-	DeployedAt    string
-	Status        string
-	ReleaseRef    sql.NullString
+func (q *Queries) CountEventStore(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countEventStore)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
-func (q *Queries) CreateDeploymentSimple(ctx context.Context, arg CreateDeploymentSimpleParams) (Deployment, error) {
-	row := q.db.QueryRowContext(ctx, createDeploymentSimple,
-		arg.ServiceID,
-		arg.EnvironmentID,
-		arg.DeployedAt,
-		arg.Status,
-		arg.ReleaseRef,
-	)
-	var i Deployment
-	err := row.Scan(
-		&i.ID,
-		&i.ServiceID,
-		&i.EnvironmentID,
-		&i.DeployedAt,
-		&i.Status,
-		&i.JobUrl,
-		&i.ReleaseRef,
-		&i.ReleaseUrl,
-		&i.CommitCount,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const createEnvironment = `-- name: CreateEnvironment :one
-INSERT INTO environments (name)
-VALUES (?)
-RETURNING id, name
+const countEventStoreBySubjectType = `-- name: CountEventStoreBySubjectType :one
+SELECT COUNT(*)
+FROM event_store
+WHERE subject_type = ?1
 `
 
-func (q *Queries) CreateEnvironment(ctx context.Context, name string) (Environment, error) {
-	row := q.db.QueryRowContext(ctx, createEnvironment, name)
-	var i Environment
-	err := row.Scan(&i.ID, &i.Name)
-	return i, err
+func (q *Queries) CountEventStoreBySubjectType(ctx context.Context, subjectType string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countEventStoreBySubjectType, subjectType)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countOrganizationOwners = `-- name: CountOrganizationOwners :one
+SELECT COUNT(*)
+FROM organization_members
+WHERE organization_id = ? AND role = 'owner'
+`
+
+func (q *Queries) CountOrganizationOwners(ctx context.Context, organizationID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOrganizationOwners, organizationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createOrganization = `-- name: CreateOrganization :one
@@ -140,10 +138,36 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 	return i, err
 }
 
+const createOrganizationEnvironmentPriority = `-- name: CreateOrganizationEnvironmentPriority :one
+INSERT INTO organization_environment_priorities (organization_id, environment, sort_order)
+VALUES (?1, ?2, ?3)
+RETURNING id, organization_id, environment, sort_order, created_at, updated_at
+`
+
+type CreateOrganizationEnvironmentPriorityParams struct {
+	OrganizationID int64
+	Environment    string
+	SortOrder      int64
+}
+
+func (q *Queries) CreateOrganizationEnvironmentPriority(ctx context.Context, arg CreateOrganizationEnvironmentPriorityParams) (OrganizationEnvironmentPriority, error) {
+	row := q.db.QueryRowContext(ctx, createOrganizationEnvironmentPriority, arg.OrganizationID, arg.Environment, arg.SortOrder)
+	var i OrganizationEnvironmentPriority
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Environment,
+		&i.SortOrder,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createOrganizationRequiredField = `-- name: CreateOrganizationRequiredField :one
-INSERT INTO organization_required_fields (organization_id, label, field_type, sort_order)
-VALUES (?1, ?2, ?3, ?4)
-RETURNING id, organization_id, label, field_type, sort_order, created_at, updated_at
+INSERT INTO organization_required_fields (organization_id, label, field_type, sort_order, is_filterable)
+VALUES (?1, ?2, ?3, ?4, ?5)
+RETURNING id, organization_id, label, field_type, sort_order, created_at, updated_at, is_filterable
 `
 
 type CreateOrganizationRequiredFieldParams struct {
@@ -151,6 +175,7 @@ type CreateOrganizationRequiredFieldParams struct {
 	Label          string
 	FieldType      string
 	SortOrder      int64
+	IsFilterable   int64
 }
 
 func (q *Queries) CreateOrganizationRequiredField(ctx context.Context, arg CreateOrganizationRequiredFieldParams) (OrganizationRequiredField, error) {
@@ -159,6 +184,7 @@ func (q *Queries) CreateOrganizationRequiredField(ctx context.Context, arg Creat
 		arg.Label,
 		arg.FieldType,
 		arg.SortOrder,
+		arg.IsFilterable,
 	)
 	var i OrganizationRequiredField
 	err := row.Scan(
@@ -169,33 +195,44 @@ func (q *Queries) CreateOrganizationRequiredField(ctx context.Context, arg Creat
 		&i.SortOrder,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IsFilterable,
 	)
 	return i, err
 }
 
-const createService = `-- name: CreateService :one
-INSERT INTO services (name, integration_type)
-VALUES (?, 'github')
-RETURNING id, name, integration_type, description, context, team, repo_url, logs_url, endpoint_url, created_at, updated_at
+const deleteOrganization = `-- name: DeleteOrganization :exec
+DELETE FROM organizations
+WHERE id = ?
 `
 
-func (q *Queries) CreateService(ctx context.Context, name string) (Service, error) {
-	row := q.db.QueryRowContext(ctx, createService, name)
-	var i Service
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.IntegrationType,
-		&i.Description,
-		&i.Context,
-		&i.Team,
-		&i.RepoUrl,
-		&i.LogsUrl,
-		&i.EndpointUrl,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) DeleteOrganization(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganization, id)
+	return err
+}
+
+const deleteOrganizationEnvironmentPriorities = `-- name: DeleteOrganizationEnvironmentPriorities :exec
+DELETE FROM organization_environment_priorities
+WHERE organization_id = ?
+`
+
+func (q *Queries) DeleteOrganizationEnvironmentPriorities(ctx context.Context, organizationID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganizationEnvironmentPriorities, organizationID)
+	return err
+}
+
+const deleteOrganizationMember = `-- name: DeleteOrganizationMember :exec
+DELETE FROM organization_members
+WHERE organization_id = ? AND user_id = ?
+`
+
+type DeleteOrganizationMemberParams struct {
+	OrganizationID int64
+	UserID         int64
+}
+
+func (q *Queries) DeleteOrganizationMember(ctx context.Context, arg DeleteOrganizationMemberParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOrganizationMember, arg.OrganizationID, arg.UserID)
+	return err
 }
 
 const deleteOrganizationRequiredFields = `-- name: DeleteOrganizationRequiredFields :exec
@@ -205,6 +242,22 @@ WHERE organization_id = ?
 
 func (q *Queries) DeleteOrganizationRequiredFields(ctx context.Context, organizationID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteOrganizationRequiredFields, organizationID)
+	return err
+}
+
+const deleteServiceMetadataByService = `-- name: DeleteServiceMetadataByService :exec
+DELETE FROM service_metadata
+WHERE organization_id = ?1
+  AND service_name = ?2
+`
+
+type DeleteServiceMetadataByServiceParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+func (q *Queries) DeleteServiceMetadataByService(ctx context.Context, arg DeleteServiceMetadataByServiceParams) error {
+	_, err := q.db.ExecContext(ctx, deleteServiceMetadataByService, arg.OrganizationID, arg.ServiceName)
 	return err
 }
 
@@ -230,20 +283,6 @@ func (q *Queries) GetDefaultOrganization(ctx context.Context) (Organization, err
 	return i, err
 }
 
-const getEnvironmentByName = `-- name: GetEnvironmentByName :one
-SELECT id, name
-FROM environments
-WHERE name = ?
-LIMIT 1
-`
-
-func (q *Queries) GetEnvironmentByName(ctx context.Context, name string) (Environment, error) {
-	row := q.db.QueryRowContext(ctx, getEnvironmentByName, name)
-	var i Environment
-	err := row.Scan(&i.ID, &i.Name)
-	return i, err
-}
-
 const getOrganizationByAuthToken = `-- name: GetOrganizationByAuthToken :one
 SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at
 FROM organizations
@@ -266,15 +305,15 @@ func (q *Queries) GetOrganizationByAuthToken(ctx context.Context, authToken stri
 	return i, err
 }
 
-const getOrganizationByName = `-- name: GetOrganizationByName :one
+const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at
 FROM organizations
-WHERE name = ?
+WHERE id = ?
 LIMIT 1
 `
 
-func (q *Queries) GetOrganizationByName(ctx context.Context, name string) (Organization, error) {
-	row := q.db.QueryRowContext(ctx, getOrganizationByName, name)
+func (q *Queries) GetOrganizationByID(ctx context.Context, id int64) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationByID, id)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -288,74 +327,216 @@ func (q *Queries) GetOrganizationByName(ctx context.Context, name string) (Organ
 	return i, err
 }
 
-const getServiceByName = `-- name: GetServiceByName :one
-SELECT id, name, integration_type, description, context, team, repo_url, logs_url, endpoint_url, created_at, updated_at
-FROM services
-WHERE name = ?
+const getOrganizationMemberRole = `-- name: GetOrganizationMemberRole :one
+SELECT role
+FROM organization_members
+WHERE organization_id = ? AND user_id = ?
 LIMIT 1
 `
 
-func (q *Queries) GetServiceByName(ctx context.Context, name string) (Service, error) {
-	row := q.db.QueryRowContext(ctx, getServiceByName, name)
-	var i Service
+type GetOrganizationMemberRoleParams struct {
+	OrganizationID int64
+	UserID         int64
+}
+
+func (q *Queries) GetOrganizationMemberRole(ctx context.Context, arg GetOrganizationMemberRoleParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationMemberRole, arg.OrganizationID, arg.UserID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
+const getServiceLatestFromEvents = `-- name: GetServiceLatestFromEvents :one
+SELECT
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  es.subject_id AS raw_subject_id,
+  es.event_timestamp AS last_deploy_at,
+  'cdevents' AS integration_type
+FROM event_store es
+WHERE es.subject_type = 'service'
+  AND es.organization_id = ?1
+  AND (es.subject_id = ?2 OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = ?2)
+ORDER BY es.event_timestamp DESC, es.seq DESC
+LIMIT 1
+`
+
+type GetServiceLatestFromEventsParams struct {
+	OrganizationID int64
+	Service        string
+}
+
+type GetServiceLatestFromEventsRow struct {
+	ServiceName     interface{}
+	RawSubjectID    string
+	LastDeployAt    string
+	IntegrationType string
+}
+
+func (q *Queries) GetServiceLatestFromEvents(ctx context.Context, arg GetServiceLatestFromEventsParams) (GetServiceLatestFromEventsRow, error) {
+	row := q.db.QueryRowContext(ctx, getServiceLatestFromEvents, arg.OrganizationID, arg.Service)
+	var i GetServiceLatestFromEventsRow
+	err := row.Scan(
+		&i.ServiceName,
+		&i.RawSubjectID,
+		&i.LastDeployAt,
+		&i.IntegrationType,
+	)
+	return i, err
+}
+
+const getUserByEmailOrNickname = `-- name: GetUserByEmailOrNickname :one
+SELECT id, github_id, email, nickname, name, avatar_url, created_at, updated_at
+FROM users
+WHERE email = ? OR nickname = ?
+LIMIT 1
+`
+
+type GetUserByEmailOrNicknameParams struct {
+	Email    string
+	Nickname string
+}
+
+func (q *Queries) GetUserByEmailOrNickname(ctx context.Context, arg GetUserByEmailOrNicknameParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmailOrNickname, arg.Email, arg.Nickname)
+	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.GithubID,
+		&i.Email,
+		&i.Nickname,
 		&i.Name,
-		&i.IntegrationType,
-		&i.Description,
-		&i.Context,
-		&i.Team,
-		&i.RepoUrl,
-		&i.LogsUrl,
-		&i.EndpointUrl,
+		&i.AvatarUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const listDeploymentHistoryByService = `-- name: ListDeploymentHistoryByService :many
-SELECT
-  d.deployed_at,
-  d.commit_count,
-  d.release_ref,
-  d.release_url,
-  e.name AS environment
-FROM deployments d
-JOIN environments e ON e.id = d.environment_id
-WHERE d.service_id = ?
-ORDER BY d.deployed_at DESC
-LIMIT ?
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, github_id, email, nickname, name, avatar_url, created_at, updated_at
+FROM users
+WHERE id = ?
+LIMIT 1
 `
 
-type ListDeploymentHistoryByServiceParams struct {
-	ServiceID int64
-	Limit     int64
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.GithubID,
+		&i.Email,
+		&i.Nickname,
+		&i.Name,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
-type ListDeploymentHistoryByServiceRow struct {
+const listDeploymentHistoryByServiceFromEvents = `-- name: ListDeploymentHistoryByServiceFromEvents :many
+SELECT
+  es.event_timestamp AS deployed_at,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS release_ref,
+  COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment
+FROM event_store es
+WHERE es.subject_type = 'service'
+  AND es.organization_id = ?1
+  AND (es.subject_id = ?2 OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = ?2)
+ORDER BY es.event_timestamp DESC, es.seq DESC
+LIMIT ?3
+`
+
+type ListDeploymentHistoryByServiceFromEventsParams struct {
+	OrganizationID int64
+	Service        string
+	Limit          int64
+}
+
+type ListDeploymentHistoryByServiceFromEventsRow struct {
 	DeployedAt  string
-	CommitCount sql.NullInt64
-	ReleaseRef  sql.NullString
-	ReleaseUrl  sql.NullString
-	Environment string
+	ReleaseRef  interface{}
+	Environment interface{}
 }
 
-func (q *Queries) ListDeploymentHistoryByService(ctx context.Context, arg ListDeploymentHistoryByServiceParams) ([]ListDeploymentHistoryByServiceRow, error) {
-	rows, err := q.db.QueryContext(ctx, listDeploymentHistoryByService, arg.ServiceID, arg.Limit)
+func (q *Queries) ListDeploymentHistoryByServiceFromEvents(ctx context.Context, arg ListDeploymentHistoryByServiceFromEventsParams) ([]ListDeploymentHistoryByServiceFromEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDeploymentHistoryByServiceFromEvents, arg.OrganizationID, arg.Service, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListDeploymentHistoryByServiceRow
+	var items []ListDeploymentHistoryByServiceFromEventsRow
 	for rows.Next() {
-		var i ListDeploymentHistoryByServiceRow
+		var i ListDeploymentHistoryByServiceFromEventsRow
+		if err := rows.Scan(&i.DeployedAt, &i.ReleaseRef, &i.Environment); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeploymentsFromEvents = `-- name: ListDeploymentsFromEvents :many
+SELECT
+  es.event_timestamp AS deployed_at,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service,
+  COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%' THEN 'success'
+    WHEN es.event_type LIKE 'dev.cdevents.service.upgraded.%' THEN 'success'
+    WHEN es.event_type LIKE 'dev.cdevents.service.published.%' THEN 'success'
+    WHEN es.event_type LIKE 'dev.cdevents.service.rolledback.%' THEN 'error'
+    WHEN es.event_type LIKE 'dev.cdevents.service.removed.%' THEN 'error'
+    ELSE 'queued'
+  END AS status
+FROM event_store es
+WHERE es.subject_type = 'service'
+  AND es.organization_id = ?1
+  AND (?2 = '' OR ?2 = 'all' OR json_extract(es.raw_event_json, '$.subject.content.environment.id') = ?2)
+  AND (?3 = '' OR ?3 = 'all' OR es.subject_id = ?3 OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = ?3)
+ORDER BY es.event_timestamp DESC, es.seq DESC
+`
+
+type ListDeploymentsFromEventsParams struct {
+	OrganizationID int64
+	Env            interface{}
+	Service        interface{}
+}
+
+type ListDeploymentsFromEventsRow struct {
+	DeployedAt  string
+	Service     interface{}
+	Environment interface{}
+	Status      string
+}
+
+func (q *Queries) ListDeploymentsFromEvents(ctx context.Context, arg ListDeploymentsFromEventsParams) ([]ListDeploymentsFromEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDeploymentsFromEvents, arg.OrganizationID, arg.Env, arg.Service)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeploymentsFromEventsRow
+	for rows.Next() {
+		var i ListDeploymentsFromEventsRow
 		if err := rows.Scan(
 			&i.DeployedAt,
-			&i.CommitCount,
-			&i.ReleaseRef,
-			&i.ReleaseUrl,
+			&i.Service,
 			&i.Environment,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -370,50 +551,244 @@ func (q *Queries) ListDeploymentHistoryByService(ctx context.Context, arg ListDe
 	return items, nil
 }
 
-const listDeployments = `-- name: ListDeployments :many
-SELECT
-  d.deployed_at,
-  s.name AS service,
-  e.name AS environment,
-  d.status,
-  d.job_url
-FROM deployments d
-JOIN services s ON s.id = d.service_id
-JOIN environments e ON e.id = d.environment_id
-WHERE (?1 = '' OR ?1 = 'all' OR e.name = ?1)
-  AND (?2 = '' OR ?2 = 'all' OR s.name = ?2)
-ORDER BY d.deployed_at DESC
+const listDistinctServiceEnvironmentsFromEvents = `-- name: ListDistinctServiceEnvironmentsFromEvents :many
+SELECT DISTINCT COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment
+FROM event_store es
+WHERE es.organization_id = ?1
+  AND es.subject_type = 'service'
+ORDER BY environment
 `
 
-type ListDeploymentsParams struct {
-	Env     interface{}
-	Service interface{}
-}
-
-type ListDeploymentsRow struct {
-	DeployedAt  string
-	Service     string
-	Environment string
-	Status      string
-	JobUrl      sql.NullString
-}
-
-func (q *Queries) ListDeployments(ctx context.Context, arg ListDeploymentsParams) ([]ListDeploymentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listDeployments, arg.Env, arg.Service)
+func (q *Queries) ListDistinctServiceEnvironmentsFromEvents(ctx context.Context, organizationID int64) ([]interface{}, error) {
+	rows, err := q.db.QueryContext(ctx, listDistinctServiceEnvironmentsFromEvents, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListDeploymentsRow
+	var items []interface{}
 	for rows.Next() {
-		var i ListDeploymentsRow
+		var environment interface{}
+		if err := rows.Scan(&environment); err != nil {
+			return nil, err
+		}
+		items = append(items, environment)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLegacyDeploymentsForBackfill = `-- name: ListLegacyDeploymentsForBackfill :many
+SELECT
+  d.id,
+  d.deployed_at,
+  s.name AS service,
+  e.name AS environment,
+  d.status,
+  d.release_ref
+FROM deployments d
+JOIN services s ON s.id = d.service_id
+JOIN environments e ON e.id = d.environment_id
+ORDER BY d.id
+`
+
+type ListLegacyDeploymentsForBackfillRow struct {
+	ID          int64
+	DeployedAt  string
+	Service     string
+	Environment string
+	Status      string
+	ReleaseRef  sql.NullString
+}
+
+func (q *Queries) ListLegacyDeploymentsForBackfill(ctx context.Context) ([]ListLegacyDeploymentsForBackfillRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLegacyDeploymentsForBackfill)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLegacyDeploymentsForBackfillRow
+	for rows.Next() {
+		var i ListLegacyDeploymentsForBackfillRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.DeployedAt,
 			&i.Service,
 			&i.Environment,
 			&i.Status,
-			&i.JobUrl,
+			&i.ReleaseRef,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationEnvironmentPriorities = `-- name: ListOrganizationEnvironmentPriorities :many
+SELECT id, organization_id, environment, sort_order
+FROM organization_environment_priorities
+WHERE organization_id = ?
+ORDER BY sort_order, id
+`
+
+type ListOrganizationEnvironmentPrioritiesRow struct {
+	ID             int64
+	OrganizationID int64
+	Environment    string
+	SortOrder      int64
+}
+
+func (q *Queries) ListOrganizationEnvironmentPriorities(ctx context.Context, organizationID int64) ([]ListOrganizationEnvironmentPrioritiesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationEnvironmentPriorities, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationEnvironmentPrioritiesRow
+	for rows.Next() {
+		var i ListOrganizationEnvironmentPrioritiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Environment,
+			&i.SortOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationFeatures = `-- name: ListOrganizationFeatures :many
+SELECT feature_key, is_enabled
+FROM organization_features
+WHERE organization_id = ?
+ORDER BY feature_key
+`
+
+type ListOrganizationFeaturesRow struct {
+	FeatureKey string
+	IsEnabled  int64
+}
+
+func (q *Queries) ListOrganizationFeatures(ctx context.Context, organizationID int64) ([]ListOrganizationFeaturesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationFeatures, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationFeaturesRow
+	for rows.Next() {
+		var i ListOrganizationFeaturesRow
+		if err := rows.Scan(&i.FeatureKey, &i.IsEnabled); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationMembers = `-- name: ListOrganizationMembers :many
+SELECT
+  u.id AS user_id,
+  u.email,
+  u.nickname,
+  u.name,
+  u.avatar_url,
+  m.role
+FROM organization_members m
+JOIN users u ON u.id = m.user_id
+WHERE m.organization_id = ?
+ORDER BY
+  CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+  COALESCE(NULLIF(u.name, ''), u.nickname, u.email)
+`
+
+type ListOrganizationMembersRow struct {
+	UserID    int64
+	Email     string
+	Nickname  string
+	Name      sql.NullString
+	AvatarUrl sql.NullString
+	Role      string
+}
+
+func (q *Queries) ListOrganizationMembers(ctx context.Context, organizationID int64) ([]ListOrganizationMembersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationMembers, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationMembersRow
+	for rows.Next() {
+		var i ListOrganizationMembersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Email,
+			&i.Nickname,
+			&i.Name,
+			&i.AvatarUrl,
+			&i.Role,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationPreferences = `-- name: ListOrganizationPreferences :many
+SELECT preference_key, preference_value
+FROM organization_preferences
+WHERE organization_id = ?
+ORDER BY preference_key
+`
+
+type ListOrganizationPreferencesRow struct {
+	PreferenceKey   string
+	PreferenceValue string
+}
+
+func (q *Queries) ListOrganizationPreferences(ctx context.Context, organizationID int64) ([]ListOrganizationPreferencesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationPreferences, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationPreferencesRow
+	for rows.Next() {
+		var i ListOrganizationPreferencesRow
+		if err := rows.Scan(&i.PreferenceKey, &i.PreferenceValue); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -428,7 +803,7 @@ func (q *Queries) ListDeployments(ctx context.Context, arg ListDeploymentsParams
 }
 
 const listOrganizationRequiredFields = `-- name: ListOrganizationRequiredFields :many
-SELECT id, organization_id, label, field_type, sort_order
+SELECT id, organization_id, label, field_type, sort_order, is_filterable
 FROM organization_required_fields
 WHERE organization_id = ?
 ORDER BY sort_order, id
@@ -440,6 +815,7 @@ type ListOrganizationRequiredFieldsRow struct {
 	Label          string
 	FieldType      string
 	SortOrder      int64
+	IsFilterable   int64
 }
 
 func (q *Queries) ListOrganizationRequiredFields(ctx context.Context, organizationID int64) ([]ListOrganizationRequiredFieldsRow, error) {
@@ -457,6 +833,7 @@ func (q *Queries) ListOrganizationRequiredFields(ctx context.Context, organizati
 			&i.Label,
 			&i.FieldType,
 			&i.SortOrder,
+			&i.IsFilterable,
 		); err != nil {
 			return nil, err
 		}
@@ -471,108 +848,134 @@ func (q *Queries) ListOrganizationRequiredFields(ctx context.Context, organizati
 	return items, nil
 }
 
-const listPendingCommitsNotInProd = `-- name: ListPendingCommitsNotInProd :many
-WITH prod_release AS (
-  SELECT id
-  FROM releases
-  WHERE service_id = ?1
-    AND environment_id = (SELECT id FROM environments WHERE name = 'production')
-  ORDER BY released_at DESC
-  LIMIT 1
+const listOrganizations = `-- name: ListOrganizations :many
+SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at
+FROM organizations
+ORDER BY name, id
+`
+
+func (q *Queries) ListOrganizations(ctx context.Context) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizations)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Organization
+	for rows.Next() {
+		var i Organization
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.AuthToken,
+			&i.WebhookSecret,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationsByUser = `-- name: ListOrganizationsByUser :many
+SELECT o.id, o.name, o.auth_token, o.webhook_secret, o.enabled, o.created_at, o.updated_at
+FROM organizations o
+JOIN organization_members m ON m.organization_id = o.id
+WHERE m.user_id = ?
+ORDER BY o.name, o.id
+`
+
+func (q *Queries) ListOrganizationsByUser(ctx context.Context, userID int64) ([]Organization, error) {
+	rows, err := q.db.QueryContext(ctx, listOrganizationsByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Organization
+	for rows.Next() {
+		var i Organization
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.AuthToken,
+			&i.WebhookSecret,
+			&i.Enabled,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServiceEnvironmentsFromEvents = `-- name: ListServiceEnvironmentsFromEvents :many
+WITH service_events AS (
+  SELECT
+    es.seq,
+    COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+    es.event_timestamp,
+    COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS artifact_id
+  FROM event_store es
+  WHERE es.subject_type = 'service'
+    AND es.organization_id = ?1
+    AND (es.subject_id = ?2 OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = ?2)
+), ranked AS (
+  SELECT
+    environment,
+    event_timestamp,
+    artifact_id,
+    row_number() OVER (
+      PARTITION BY environment
+      ORDER BY event_timestamp DESC, seq DESC
+    ) AS rn
+  FROM service_events
 )
 SELECT
-  c.id,
-  c.sha,
-  c.message,
-  c.url,
-  c.committed_at
-FROM commits c
-WHERE c.service_id = ?1
-  AND c.id NOT IN (
-    SELECT rc.commit_id
-    FROM release_commits rc
-    JOIN prod_release pr ON pr.id = rc.release_id
-  )
-ORDER BY c.committed_at DESC
-LIMIT ?2
+  environment AS name,
+  event_timestamp AS released_at,
+  artifact_id AS ref
+FROM ranked
+WHERE rn = 1
+ORDER BY released_at DESC
 `
 
-type ListPendingCommitsNotInProdParams struct {
-	ServiceID int64
-	Limit     int64
+type ListServiceEnvironmentsFromEventsParams struct {
+	OrganizationID int64
+	Service        string
 }
 
-type ListPendingCommitsNotInProdRow struct {
-	ID          int64
-	Sha         string
-	Message     string
-	Url         sql.NullString
-	CommittedAt string
-}
-
-func (q *Queries) ListPendingCommitsNotInProd(ctx context.Context, arg ListPendingCommitsNotInProdParams) ([]ListPendingCommitsNotInProdRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPendingCommitsNotInProd, arg.ServiceID, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListPendingCommitsNotInProdRow
-	for rows.Next() {
-		var i ListPendingCommitsNotInProdRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Sha,
-			&i.Message,
-			&i.Url,
-			&i.CommittedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listServiceEnvironments = `-- name: ListServiceEnvironments :many
-SELECT
-  e.name,
-  r.released_at,
-  r.ref,
-  r.release_url
-FROM releases r
-JOIN environments e ON e.id = r.environment_id
-WHERE r.service_id = ?
-ORDER BY r.released_at DESC
-`
-
-type ListServiceEnvironmentsRow struct {
-	Name       string
+type ListServiceEnvironmentsFromEventsRow struct {
+	Name       interface{}
 	ReleasedAt string
-	Ref        string
-	ReleaseUrl sql.NullString
+	Ref        interface{}
 }
 
-func (q *Queries) ListServiceEnvironments(ctx context.Context, serviceID int64) ([]ListServiceEnvironmentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listServiceEnvironments, serviceID)
+func (q *Queries) ListServiceEnvironmentsFromEvents(ctx context.Context, arg ListServiceEnvironmentsFromEventsParams) ([]ListServiceEnvironmentsFromEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceEnvironmentsFromEvents, arg.OrganizationID, arg.Service)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListServiceEnvironmentsRow
+	var items []ListServiceEnvironmentsFromEventsRow
 	for rows.Next() {
-		var i ListServiceEnvironmentsRow
-		if err := rows.Scan(
-			&i.Name,
-			&i.ReleasedAt,
-			&i.Ref,
-			&i.ReleaseUrl,
-		); err != nil {
+		var i ListServiceEnvironmentsFromEventsRow
+		if err := rows.Scan(&i.Name, &i.ReleasedAt, &i.Ref); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -586,123 +989,82 @@ func (q *Queries) ListServiceEnvironments(ctx context.Context, serviceID int64) 
 	return items, nil
 }
 
-const listServiceFields = `-- name: ListServiceFields :many
-SELECT id, service_id, label, value, sort_order
-FROM service_fields
-WHERE service_id = ?
-ORDER BY sort_order ASC, label ASC
-`
-
-func (q *Queries) ListServiceFields(ctx context.Context, serviceID int64) ([]ServiceField, error) {
-	rows, err := q.db.QueryContext(ctx, listServiceFields, serviceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ServiceField
-	for rows.Next() {
-		var i ServiceField
-		if err := rows.Scan(
-			&i.ID,
-			&i.ServiceID,
-			&i.Label,
-			&i.Value,
-			&i.SortOrder,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listServiceInstances = `-- name: ListServiceInstances :many
+const listServiceInstancesByEnvFromEvents = `-- name: ListServiceInstancesByEnvFromEvents :many
+WITH service_events AS (
+  SELECT
+    es.seq,
+    es.event_type,
+    es.event_timestamp,
+    CASE
+      WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+      ELSE es.subject_id
+    END AS service_name,
+    COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+    COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS artifact_id,
+    CASE
+      WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%' THEN 'synced'
+      WHEN es.event_type LIKE 'dev.cdevents.service.upgraded.%' THEN 'synced'
+      WHEN es.event_type LIKE 'dev.cdevents.service.published.%' THEN 'synced'
+      WHEN es.event_type LIKE 'dev.cdevents.service.rolledback.%' THEN 'warning'
+      WHEN es.event_type LIKE 'dev.cdevents.service.removed.%' THEN 'out-of-sync'
+      ELSE 'unknown'
+    END AS status
+  FROM event_store es
+  WHERE es.subject_type = 'service'
+    AND es.organization_id = ?1
+    AND COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') = ?2
+), ranked AS (
+  SELECT
+    service_name,
+    environment,
+    status,
+    event_timestamp,
+    artifact_id,
+    row_number() OVER (
+      PARTITION BY service_name
+      ORDER BY event_timestamp DESC, seq DESC
+    ) AS rn
+  FROM service_events
+)
 SELECT
-  si.id,
-  si.service_id,
-  s.name AS service_name,
-  s.description,
-  s.context,
-  s.team,
-  s.repo_url,
-  s.logs_url,
-  s.endpoint_url,
-  e.name AS environment,
-  si.status,
-  si.last_deploy_at,
-  si.deploy_duration_seconds,
-  si.revision,
-  si.commit_sha,
-  si.commit_url,
-  si.commit_index,
-  si.action_label,
-  si.action_kind,
-  si.action_disabled
-FROM service_instances si
-JOIN services s ON s.id = si.service_id
-JOIN environments e ON e.id = si.environment_id
-ORDER BY s.name, e.name
+  service_name,
+  environment,
+  status,
+  event_timestamp AS last_deploy_at,
+  artifact_id
+FROM ranked
+WHERE rn = 1
+ORDER BY service_name, environment
 `
 
-type ListServiceInstancesRow struct {
-	ID                    int64
-	ServiceID             int64
-	ServiceName           string
-	Description           sql.NullString
-	Context               sql.NullString
-	Team                  sql.NullString
-	RepoUrl               sql.NullString
-	LogsUrl               sql.NullString
-	EndpointUrl           sql.NullString
-	Environment           string
-	Status                string
-	LastDeployAt          sql.NullString
-	DeployDurationSeconds sql.NullInt64
-	Revision              sql.NullString
-	CommitSha             sql.NullString
-	CommitUrl             sql.NullString
-	CommitIndex           sql.NullInt64
-	ActionLabel           sql.NullString
-	ActionKind            sql.NullString
-	ActionDisabled        int64
+type ListServiceInstancesByEnvFromEventsParams struct {
+	OrganizationID int64
+	Env            string
 }
 
-func (q *Queries) ListServiceInstances(ctx context.Context) ([]ListServiceInstancesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listServiceInstances)
+type ListServiceInstancesByEnvFromEventsRow struct {
+	ServiceName  interface{}
+	Environment  interface{}
+	Status       string
+	LastDeployAt string
+	ArtifactID   interface{}
+}
+
+func (q *Queries) ListServiceInstancesByEnvFromEvents(ctx context.Context, arg ListServiceInstancesByEnvFromEventsParams) ([]ListServiceInstancesByEnvFromEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceInstancesByEnvFromEvents, arg.OrganizationID, arg.Env)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListServiceInstancesRow
+	var items []ListServiceInstancesByEnvFromEventsRow
 	for rows.Next() {
-		var i ListServiceInstancesRow
+		var i ListServiceInstancesByEnvFromEventsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.ServiceID,
 			&i.ServiceName,
-			&i.Description,
-			&i.Context,
-			&i.Team,
-			&i.RepoUrl,
-			&i.LogsUrl,
-			&i.EndpointUrl,
 			&i.Environment,
 			&i.Status,
 			&i.LastDeployAt,
-			&i.DeployDurationSeconds,
-			&i.Revision,
-			&i.CommitSha,
-			&i.CommitUrl,
-			&i.CommitIndex,
-			&i.ActionLabel,
-			&i.ActionKind,
-			&i.ActionDisabled,
+			&i.ArtifactID,
 		); err != nil {
 			return nil, err
 		}
@@ -717,88 +1079,76 @@ func (q *Queries) ListServiceInstances(ctx context.Context) ([]ListServiceInstan
 	return items, nil
 }
 
-const listServiceInstancesByEnv = `-- name: ListServiceInstancesByEnv :many
+const listServiceInstancesFromEvents = `-- name: ListServiceInstancesFromEvents :many
+WITH service_events AS (
+  SELECT
+    es.seq,
+    es.event_type,
+    es.event_timestamp,
+    CASE
+      WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+      ELSE es.subject_id
+    END AS service_name,
+    COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+    COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS artifact_id,
+    CASE
+      WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%' THEN 'synced'
+      WHEN es.event_type LIKE 'dev.cdevents.service.upgraded.%' THEN 'synced'
+      WHEN es.event_type LIKE 'dev.cdevents.service.published.%' THEN 'synced'
+      WHEN es.event_type LIKE 'dev.cdevents.service.rolledback.%' THEN 'warning'
+      WHEN es.event_type LIKE 'dev.cdevents.service.removed.%' THEN 'out-of-sync'
+      ELSE 'unknown'
+    END AS status
+  FROM event_store es
+  WHERE es.subject_type = 'service'
+    AND es.organization_id = ?1
+), ranked AS (
+  SELECT
+    service_name,
+    environment,
+    status,
+    event_timestamp,
+    artifact_id,
+    row_number() OVER (
+      PARTITION BY service_name
+      ORDER BY event_timestamp DESC, seq DESC
+    ) AS rn
+  FROM service_events
+)
 SELECT
-  si.id,
-  si.service_id,
-  s.name AS service_name,
-  s.description,
-  s.context,
-  s.team,
-  s.repo_url,
-  s.logs_url,
-  s.endpoint_url,
-  e.name AS environment,
-  si.status,
-  si.last_deploy_at,
-  si.deploy_duration_seconds,
-  si.revision,
-  si.commit_sha,
-  si.commit_url,
-  si.commit_index,
-  si.action_label,
-  si.action_kind,
-  si.action_disabled
-FROM service_instances si
-JOIN services s ON s.id = si.service_id
-JOIN environments e ON e.id = si.environment_id
-WHERE e.name = ?
-ORDER BY s.name, e.name
+  service_name,
+  environment,
+  status,
+  event_timestamp AS last_deploy_at,
+  artifact_id
+FROM ranked
+WHERE rn = 1
+ORDER BY service_name, environment
 `
 
-type ListServiceInstancesByEnvRow struct {
-	ID                    int64
-	ServiceID             int64
-	ServiceName           string
-	Description           sql.NullString
-	Context               sql.NullString
-	Team                  sql.NullString
-	RepoUrl               sql.NullString
-	LogsUrl               sql.NullString
-	EndpointUrl           sql.NullString
-	Environment           string
-	Status                string
-	LastDeployAt          sql.NullString
-	DeployDurationSeconds sql.NullInt64
-	Revision              sql.NullString
-	CommitSha             sql.NullString
-	CommitUrl             sql.NullString
-	CommitIndex           sql.NullInt64
-	ActionLabel           sql.NullString
-	ActionKind            sql.NullString
-	ActionDisabled        int64
+type ListServiceInstancesFromEventsRow struct {
+	ServiceName  interface{}
+	Environment  interface{}
+	Status       string
+	LastDeployAt string
+	ArtifactID   interface{}
 }
 
-func (q *Queries) ListServiceInstancesByEnv(ctx context.Context, name string) ([]ListServiceInstancesByEnvRow, error) {
-	rows, err := q.db.QueryContext(ctx, listServiceInstancesByEnv, name)
+func (q *Queries) ListServiceInstancesFromEvents(ctx context.Context, organizationID int64) ([]ListServiceInstancesFromEventsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceInstancesFromEvents, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListServiceInstancesByEnvRow
+	var items []ListServiceInstancesFromEventsRow
 	for rows.Next() {
-		var i ListServiceInstancesByEnvRow
+		var i ListServiceInstancesFromEventsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.ServiceID,
 			&i.ServiceName,
-			&i.Description,
-			&i.Context,
-			&i.Team,
-			&i.RepoUrl,
-			&i.LogsUrl,
-			&i.EndpointUrl,
 			&i.Environment,
 			&i.Status,
 			&i.LastDeployAt,
-			&i.DeployDurationSeconds,
-			&i.Revision,
-			&i.CommitSha,
-			&i.CommitUrl,
-			&i.CommitIndex,
-			&i.ActionLabel,
-			&i.ActionKind,
-			&i.ActionDisabled,
+			&i.ArtifactID,
 		); err != nil {
 			return nil, err
 		}
@@ -813,19 +1163,112 @@ func (q *Queries) ListServiceInstancesByEnv(ctx context.Context, name string) ([
 	return items, nil
 }
 
-const markServiceIntegrationType = `-- name: MarkServiceIntegrationType :exec
-UPDATE services
-SET integration_type = ?, updated_at = CURRENT_TIMESTAMP
+const listServiceMetadataByOrganization = `-- name: ListServiceMetadataByOrganization :many
+SELECT service_name, label, value
+FROM service_metadata
+WHERE organization_id = ?1
+ORDER BY service_name, label
+`
+
+type ListServiceMetadataByOrganizationRow struct {
+	ServiceName string
+	Label       string
+	Value       string
+}
+
+func (q *Queries) ListServiceMetadataByOrganization(ctx context.Context, organizationID int64) ([]ListServiceMetadataByOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceMetadataByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListServiceMetadataByOrganizationRow
+	for rows.Next() {
+		var i ListServiceMetadataByOrganizationRow
+		if err := rows.Scan(&i.ServiceName, &i.Label, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServiceMetadataByService = `-- name: ListServiceMetadataByService :many
+SELECT label, value
+FROM service_metadata
+WHERE organization_id = ?1
+  AND service_name = ?2
+ORDER BY label
+`
+
+type ListServiceMetadataByServiceParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+type ListServiceMetadataByServiceRow struct {
+	Label string
+	Value string
+}
+
+func (q *Queries) ListServiceMetadataByService(ctx context.Context, arg ListServiceMetadataByServiceParams) ([]ListServiceMetadataByServiceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceMetadataByService, arg.OrganizationID, arg.ServiceName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListServiceMetadataByServiceRow
+	for rows.Next() {
+		var i ListServiceMetadataByServiceRow
+		if err := rows.Scan(&i.Label, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateOrganizationEnabled = `-- name: UpdateOrganizationEnabled :exec
+UPDATE organizations
+SET enabled = ?, updated_at = CURRENT_TIMESTAMP
 WHERE id = ?
 `
 
-type MarkServiceIntegrationTypeParams struct {
-	IntegrationType string
-	ID              int64
+type UpdateOrganizationEnabledParams struct {
+	Enabled int64
+	ID      int64
 }
 
-func (q *Queries) MarkServiceIntegrationType(ctx context.Context, arg MarkServiceIntegrationTypeParams) error {
-	_, err := q.db.ExecContext(ctx, markServiceIntegrationType, arg.IntegrationType, arg.ID)
+func (q *Queries) UpdateOrganizationEnabled(ctx context.Context, arg UpdateOrganizationEnabledParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrganizationEnabled, arg.Enabled, arg.ID)
+	return err
+}
+
+const updateOrganizationName = `-- name: UpdateOrganizationName :exec
+UPDATE organizations
+SET name = ?, updated_at = CURRENT_TIMESTAMP
+WHERE id = ?
+`
+
+type UpdateOrganizationNameParams struct {
+	Name string
+	ID   int64
+}
+
+func (q *Queries) UpdateOrganizationName(ctx context.Context, arg UpdateOrganizationNameParams) error {
+	_, err := q.db.ExecContext(ctx, updateOrganizationName, arg.Name, arg.ID)
 	return err
 }
 
@@ -852,94 +1295,124 @@ func (q *Queries) UpdateOrganizationSecrets(ctx context.Context, arg UpdateOrgan
 	return err
 }
 
-const updateServiceInstanceStatus = `-- name: UpdateServiceInstanceStatus :exec
-UPDATE service_instances
-SET status = ?,
-    last_deploy_at = ?,
-    updated_at = CURRENT_TIMESTAMP
-WHERE id = ?
+const upsertOrganizationFeature = `-- name: UpsertOrganizationFeature :exec
+INSERT INTO organization_features (organization_id, feature_key, is_enabled)
+VALUES (?, ?, ?)
+ON CONFLICT(organization_id, feature_key) DO UPDATE SET
+  is_enabled = excluded.is_enabled,
+  updated_at = CURRENT_TIMESTAMP
 `
 
-type UpdateServiceInstanceStatusParams struct {
-	Status       string
-	LastDeployAt sql.NullString
-	ID           int64
+type UpsertOrganizationFeatureParams struct {
+	OrganizationID int64
+	FeatureKey     string
+	IsEnabled      int64
 }
 
-func (q *Queries) UpdateServiceInstanceStatus(ctx context.Context, arg UpdateServiceInstanceStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateServiceInstanceStatus, arg.Status, arg.LastDeployAt, arg.ID)
+func (q *Queries) UpsertOrganizationFeature(ctx context.Context, arg UpsertOrganizationFeatureParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationFeature, arg.OrganizationID, arg.FeatureKey, arg.IsEnabled)
 	return err
 }
 
-const upsertServiceInstance = `-- name: UpsertServiceInstance :one
-INSERT INTO service_instances (
-  service_id,
-  environment_id,
-  status,
-  last_deploy_at,
-  revision,
-  commit_sha,
-  commit_url,
-  action_label,
-  action_kind,
-  action_disabled,
-  updated_at
-)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-ON CONFLICT(service_id, environment_id) DO UPDATE SET
-  status = excluded.status,
-  last_deploy_at = excluded.last_deploy_at,
-  revision = excluded.revision,
-  commit_sha = excluded.commit_sha,
-  commit_url = excluded.commit_url,
-  action_label = excluded.action_label,
-  action_kind = excluded.action_kind,
-  action_disabled = excluded.action_disabled,
+const upsertOrganizationMember = `-- name: UpsertOrganizationMember :exec
+INSERT INTO organization_members (organization_id, user_id, role)
+VALUES (?, ?, ?)
+ON CONFLICT(organization_id, user_id) DO UPDATE SET
+  role = excluded.role,
   updated_at = CURRENT_TIMESTAMP
-RETURNING id, service_id, environment_id, status, last_deploy_at, deploy_duration_seconds, revision, commit_sha, commit_url, commit_index, action_label, action_kind, action_disabled, created_at, updated_at
 `
 
-type UpsertServiceInstanceParams struct {
-	ServiceID      int64
-	EnvironmentID  int64
-	Status         string
-	LastDeployAt   sql.NullString
-	Revision       sql.NullString
-	CommitSha      sql.NullString
-	CommitUrl      sql.NullString
-	ActionLabel    sql.NullString
-	ActionKind     sql.NullString
-	ActionDisabled int64
+type UpsertOrganizationMemberParams struct {
+	OrganizationID int64
+	UserID         int64
+	Role           string
 }
 
-func (q *Queries) UpsertServiceInstance(ctx context.Context, arg UpsertServiceInstanceParams) (ServiceInstance, error) {
-	row := q.db.QueryRowContext(ctx, upsertServiceInstance,
-		arg.ServiceID,
-		arg.EnvironmentID,
-		arg.Status,
-		arg.LastDeployAt,
-		arg.Revision,
-		arg.CommitSha,
-		arg.CommitUrl,
-		arg.ActionLabel,
-		arg.ActionKind,
-		arg.ActionDisabled,
+func (q *Queries) UpsertOrganizationMember(ctx context.Context, arg UpsertOrganizationMemberParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationMember, arg.OrganizationID, arg.UserID, arg.Role)
+	return err
+}
+
+const upsertOrganizationPreference = `-- name: UpsertOrganizationPreference :exec
+INSERT INTO organization_preferences (organization_id, preference_key, preference_value)
+VALUES (?, ?, ?)
+ON CONFLICT(organization_id, preference_key) DO UPDATE SET
+  preference_value = excluded.preference_value,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertOrganizationPreferenceParams struct {
+	OrganizationID  int64
+	PreferenceKey   string
+	PreferenceValue string
+}
+
+func (q *Queries) UpsertOrganizationPreference(ctx context.Context, arg UpsertOrganizationPreferenceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationPreference, arg.OrganizationID, arg.PreferenceKey, arg.PreferenceValue)
+	return err
+}
+
+const upsertServiceMetadata = `-- name: UpsertServiceMetadata :exec
+INSERT INTO service_metadata (organization_id, service_name, label, value)
+VALUES (?1, ?2, ?3, ?4)
+ON CONFLICT(organization_id, service_name, label) DO UPDATE SET
+  value = excluded.value,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertServiceMetadataParams struct {
+	OrganizationID int64
+	ServiceName    string
+	Label          string
+	Value          string
+}
+
+func (q *Queries) UpsertServiceMetadata(ctx context.Context, arg UpsertServiceMetadataParams) error {
+	_, err := q.db.ExecContext(ctx, upsertServiceMetadata,
+		arg.OrganizationID,
+		arg.ServiceName,
+		arg.Label,
+		arg.Value,
 	)
-	var i ServiceInstance
+	return err
+}
+
+const upsertUser = `-- name: UpsertUser :one
+INSERT INTO users (github_id, email, nickname, name, avatar_url)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(email) DO UPDATE SET
+  github_id = excluded.github_id,
+  nickname = excluded.nickname,
+  name = excluded.name,
+  avatar_url = excluded.avatar_url,
+  updated_at = CURRENT_TIMESTAMP
+RETURNING id, github_id, email, nickname, name, avatar_url, created_at, updated_at
+`
+
+type UpsertUserParams struct {
+	GithubID  sql.NullString
+	Email     string
+	Nickname  string
+	Name      sql.NullString
+	AvatarUrl sql.NullString
+}
+
+func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, upsertUser,
+		arg.GithubID,
+		arg.Email,
+		arg.Nickname,
+		arg.Name,
+		arg.AvatarUrl,
+	)
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.ServiceID,
-		&i.EnvironmentID,
-		&i.Status,
-		&i.LastDeployAt,
-		&i.DeployDurationSeconds,
-		&i.Revision,
-		&i.CommitSha,
-		&i.CommitUrl,
-		&i.CommitIndex,
-		&i.ActionLabel,
-		&i.ActionKind,
-		&i.ActionDisabled,
+		&i.GithubID,
+		&i.Email,
+		&i.Nickname,
+		&i.Name,
+		&i.AvatarUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

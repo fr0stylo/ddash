@@ -3,12 +3,13 @@ package main
 import (
 	"log/slog"
 	"os"
-
-	_ "modernc.org/sqlite"
+	"strings"
 
 	"github.com/joho/godotenv"
+	_ "modernc.org/sqlite"
 
 	"github.com/fr0stylo/ddash"
+	"github.com/fr0stylo/ddash/internal/adapters/sqlite"
 	"github.com/fr0stylo/ddash/internal/db"
 	"github.com/fr0stylo/ddash/internal/server"
 	"github.com/fr0stylo/ddash/internal/server/routes"
@@ -38,14 +39,15 @@ func main() {
 		}
 	}()
 
-	customWebhookBase := os.Getenv("DDASH_WEBHOOK_DB_BASE")
-	if customWebhookBase == "" {
-		customWebhookBase = "data"
-	}
-
 	authSecret := os.Getenv("DDASH_SESSION_SECRET")
 	if authSecret == "" {
-		authSecret = "ddash-local-dev"
+		if isLocalDevelopmentEnv() {
+			authSecret = "ddash-local-dev"
+			slog.Warn("DDASH_SESSION_SECRET not set, using local development fallback")
+		} else {
+			slog.Error("DDASH_SESSION_SECRET is required outside local/dev environments")
+			return
+		}
 	}
 
 	callbackURL := os.Getenv("GITHUB_CALLBACK_URL")
@@ -61,14 +63,28 @@ func main() {
 		SecureCookies:      os.Getenv("DDASH_SECURE_COOKIE") == "true",
 	})
 
-	srv.RegisterRouter(routes.NewAuthRoutes())
-	srv.RegisterRouter(routes.NewViewRoutes(database))
-	srv.RegisterRouter(&routes.APIRoutes{})
-	srv.RegisterRouter(routes.NewWebhookRoutes(
-		[]byte(os.Getenv("GITHUB_WEBHOOK_SECRET")),
-		customWebhookBase,
-	))
+	store := sqlite.NewStore(database)
+
+	srv.RegisterRouter(routes.NewAuthRoutes(store))
+	srv.RegisterRouter(routes.NewViewRoutes(store, store))
+	srv.RegisterRouter(routes.NewWebhookRoutes(sqlite.NewSharedIngestionStoreFactory(database)))
 
 	slog.Info("Starting server", "port", 8080)
 	slog.Error("Closing server", "error", srv.Start(":8080"))
+}
+
+func isLocalDevelopmentEnv() bool {
+	env := strings.ToLower(strings.TrimSpace(os.Getenv("DDASH_ENV")))
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	}
+	if env == "" {
+		env = strings.ToLower(strings.TrimSpace(os.Getenv("GO_ENV")))
+	}
+	switch env {
+	case "", "local", "dev", "development", "test":
+		return true
+	default:
+		return false
+	}
 }

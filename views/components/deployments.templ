@@ -1,12 +1,32 @@
 package components
 
-templ DeploymentRowItem(row DeploymentRow) {
-	<tr class="hover:bg-gray-50" data-deployment-row>
+templ DeploymentRowItem(row DeploymentRow, showSyncStatus bool, showEnvironmentColumn bool, statusSemanticsMode string) {
+	<tr class="hover:bg-gray-50" data-deployment-row data-metadata={ row.MetadataTags } x-show="matchesMetadata($el.dataset.metadata)">
 		<td class="px-4 py-3 text-gray-700">{ row.DeployedAt }</td>
 		<td class="px-4 py-3 text-gray-700">{ row.Service }</td>
-		<td class="px-4 py-3 text-gray-700">{ row.Environment }</td>
-		<td class="px-4 py-3">
-			<span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600">{ string(row.Status) }</span>
-		</td>
+		if showEnvironmentColumn {
+			<td class="px-4 py-3 text-gray-700">{ row.Environment }</td>
+		}
+		if showSyncStatus {
+			<td class="px-4 py-3">
+				<span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-medium text-gray-600">{ deploymentStatusLabel(row.Status, statusSemanticsMode) }</span>
+			</td>
+		}
 	</tr>
+}
+
+func deploymentStatusLabel(status DeploymentStatus, mode string) string {
+	if mode != "plain" {
+		return string(status)
+	}
+	switch status {
+	case DeploymentSuccess:
+		return "Successful"
+	case DeploymentProcessing:
+		return "In progress"
+	case DeploymentError:
+		return "Failed"
+	default:
+		return "Queued"
+	}
 }

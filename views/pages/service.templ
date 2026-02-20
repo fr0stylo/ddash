@@ -7,31 +7,63 @@ import (
 	"github.com/fr0stylo/ddash/views/components"
 )
 
-templ ServicePage(service components.ServiceDetail) {
-	@base.Doc(service.Title) {
-		@base.AppHeader(service.Title, service.Description) {
-			@components.BackLink("Back to services", "/")
-			<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/deployments">
-				Deployments
-			</a>
-			<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/settings">
-				Settings
-			</a>
-			<button type="button" class="inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50">
-				Update definition
-			</button>
-		}
-		<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-			<div class="flex flex-col gap-8">
-				<section class="flex flex-col gap-4">
-					<div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-						@components.MetaPill("Context", service.Context)
-						@components.MetaPill("Team", service.Team)
-					</div>
-				</section>
-
-				<section class="grid gap-6 lg:grid-cols-3">
-					<div class="space-y-6 lg:col-span-2">
+templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, showDeploymentHistory bool, allowServiceMetadataEditing bool, showIntegrationTypeBadges bool, csrfToken string) {
+		@base.Doc(service.Title) {
+			@base.AppHeader(service.Title, service.Description) {
+				@components.BackLink("Back to services", "/")
+				if showMetadataBadges && service.MissingMetadata > 0 {
+					<span class={ "inline-flex h-9 items-center rounded-lg border px-3 text-xs font-semibold " + metadataHeaderBadgeClass(service.MissingMetadata) }>{ service.MissingMetadata } metadata missing</span>
+				}
+				if showIntegrationTypeBadges {
+					<span class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700">{ service.IntegrationType }</span>
+				}
+				<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/deployments">
+					Deployments
+				</a>
+				<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/settings">
+					Settings
+				</a>
+			}
+			<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+				<div
+					class="flex flex-col gap-8"
+						x-data={ fmt.Sprintf(`{
+							metadataFields: %s,
+							csrfToken: %q,
+							savingMetadata: false,
+						metadataToast: '',
+						setToast(message) {
+							this.metadataToast = message;
+							setTimeout(() => { this.metadataToast = ''; }, 2200);
+						},
+						async saveMetadata() {
+							this.savingMetadata = true;
+							try {
+							const response = await fetch(%q, {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken },
+								body: JSON.stringify({ fields: this.metadataFields }),
+							});
+								if (!response.ok) {
+									throw new Error('save failed');
+								}
+								this.setToast('Metadata saved');
+							} catch (error) {
+								this.setToast('Metadata save failed');
+							} finally {
+								this.savingMetadata = false;
+							}
+						}
+					}`, components.ServiceFieldsJSON(service.MetadataFields), csrfToken, service.MetadataSaveURL) }
+				>
+					<div
+						class="fixed right-6 top-6 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-lg"
+						x-show="metadataToast"
+						x-transition
+						x-text="metadataToast"
+					></div>
+					<section class="grid gap-6 lg:grid-cols-3">
+						<div class="space-y-6 lg:col-span-2">
 						@components.Card("Environments") {
 							<div class="overflow-hidden rounded-lg border border-gray-200">
 								<table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -105,6 +137,7 @@ templ ServicePage(service components.ServiceDetail) {
 							}
 						}
 
+						if showDeploymentHistory {
 						@components.Card("Deployment history") {
 							<div class="space-y-3">
 								if len(service.DeploymentHistory) == 0 {
@@ -128,46 +161,35 @@ templ ServicePage(service components.ServiceDetail) {
 								}
 							</div>
 						}
+						}
 					</div>
 
 					<div class="space-y-6">
 						@components.Card("Service metadata") {
-							<div class="space-y-2">
-								if len(service.CustomFields) == 0 {
+							<div class="space-y-4">
+								if len(service.MetadataFields) == 0 {
 									<div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-										No custom fields yet.
+										No metadata requirements configured yet. Add metadata requirements in <a class="font-medium text-gray-700 underline-offset-2 hover:underline" href="/settings#metadata-requirements">Settings</a>.
 									</div>
 								}
-								for _, field := range service.CustomFields {
-									if components.IsURLField(field) {
-										@components.ServiceFieldItem(field)
-									}
-								}
-								for _, field := range service.CustomFields {
-									if !components.IsURLField(field) {
-										@components.ServiceFieldItem(field)
-									}
-								}
-							</div>
-						}
-
-						@components.Card("Organization fields") {
-							<div class="space-y-2">
-								if len(service.OrgRequiredFields) == 0 {
-									<div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-										No organization fields yet.
+								<template x-for="(field, index) in metadataFields" :key="field.label + '-' + index">
+									<div class="space-y-1">
+										<label class="text-xs font-medium text-gray-500" x-text="field.label"></label>
+										<input
+											type="text"
+											x-model="field.value"
+											class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
+											placeholder="Missing"
+											if !allowServiceMetadataEditing { readonly }
+										/>
 									</div>
-								}
-								for _, field := range service.OrgRequiredFields {
-									if components.IsURLField(field) {
-										@components.ServiceFieldItem(field)
-									}
-								}
-								for _, field := range service.OrgRequiredFields {
-									if !components.IsURLField(field) {
-										@components.ServiceFieldItem(field)
-									}
-								}
+								</template>
+								<div class="flex justify-end" x-show="metadataFields.length > 0 && allowServiceMetadataEditing">
+									<button type="button" class="inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800" @click="saveMetadata()" :disabled="savingMetadata">
+										<span x-show="!savingMetadata">Save metadata</span>
+										<span x-show="savingMetadata">Saving...</span>
+									</button>
+								</div>
 							</div>
 						}
 					</div>
@@ -175,4 +197,11 @@ templ ServicePage(service components.ServiceDetail) {
 			</div>
 		</main>
 	}
+}
+
+func metadataHeaderBadgeClass(missing int) string {
+	if missing >= 3 {
+		return "border-red-200 bg-red-50 text-red-700"
+	}
+	return "border-amber-200 bg-amber-50 text-amber-700"
 }

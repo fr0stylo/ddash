@@ -15,7 +15,7 @@ import (
 	"github.com/fr0stylo/ddash/views/components"
 )
 
-func SettingsPage(requiredFields []components.ServiceField, authToken string, webhookSecret string, enabled bool) templ.Component {
+func SettingsPage(requiredFields []components.ServiceField, environmentOrder []string, authToken string, webhookSecret string, enabled bool, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, enableSSELiveUpdates bool, showDeploymentHistory bool, showMetadataFilters bool, strictMetadataEnforcement bool, maskSensitiveMetadataValues bool, allowServiceMetadataEditing bool, showOnboardingHints bool, showIntegrationTypeBadges bool, deploymentRetentionDays int, defaultDashboardView string, statusSemanticsMode string, csrfToken string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -64,7 +64,17 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/onboarding\">Onboarding</a> <a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/deployments\">Deployments</a>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if showOnboardingHints {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/onboarding\">Onboarding</a>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, " <a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/deployments\">Deployments</a>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -74,7 +84,7 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, " <main class=\"mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " <main class=\"mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -83,8 +93,24 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 				authToken: %q,
 				webhookSecret: %q,
 				enabled: %t,
-				requiredFields: %s,
-				saving: false,
+				showSyncStatus: %t,
+				showMetadataBadges: %t,
+				showEnvironmentColumn: %t,
+				enableSSELiveUpdates: %t,
+				showDeploymentHistory: %t,
+				showMetadataFilters: %t,
+				strictMetadataEnforcement: %t,
+				maskSensitiveMetadataValues: %t,
+				allowServiceMetadataEditing: %t,
+				showOnboardingHints: %t,
+				showIntegrationTypeBadges: %t,
+				deploymentRetentionDays: %d,
+				defaultDashboardView: %q,
+				statusSemanticsMode: %q,
+					requiredFields: %s,
+					environmentOrder: %s,
+					csrfToken: %q,
+					saving: false,
 				toast: '',
 				timer: null,
 				toPayload() {
@@ -92,7 +118,22 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 						authToken: this.authToken,
 						webhookSecret: this.webhookSecret,
 						enabled: this.enabled,
+						showSyncStatus: this.showSyncStatus,
+						showMetadataBadges: this.showMetadataBadges,
+						showEnvironmentColumn: this.showEnvironmentColumn,
+						enableSSELiveUpdates: this.enableSSELiveUpdates,
+						showDeploymentHistory: this.showDeploymentHistory,
+						showMetadataFilters: this.showMetadataFilters,
+						strictMetadataEnforcement: this.strictMetadataEnforcement,
+						maskSensitiveMetadataValues: this.maskSensitiveMetadataValues,
+						allowServiceMetadataEditing: this.allowServiceMetadataEditing,
+						showOnboardingHints: this.showOnboardingHints,
+						showIntegrationTypeBadges: this.showIntegrationTypeBadges,
+						deploymentRetentionDays: this.deploymentRetentionDays,
+						defaultDashboardView: this.defaultDashboardView,
+						statusSemanticsMode: this.statusSemanticsMode,
 						requiredFields: this.requiredFields,
+						environmentOrder: this.environmentOrder,
 					};
 				},
 				showToast(message) {
@@ -107,7 +148,7 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 					try {
 						const response = await fetch('/settings', {
 							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
+							headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': this.csrfToken },
 							body: JSON.stringify(this.toPayload()),
 						});
 						if (!response.ok) {
@@ -120,15 +161,15 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 						this.saving = false;
 					}
 				},
-			}`, authToken, webhookSecret, enabled, components.RequiredFieldsJSON(requiredFields)))
+			}`, authToken, webhookSecret, enabled, showSyncStatus, showMetadataBadges, showEnvironmentColumn, enableSSELiveUpdates, showDeploymentHistory, showMetadataFilters, strictMetadataEnforcement, maskSensitiveMetadataValues, allowServiceMetadataEditing, showOnboardingHints, showIntegrationTypeBadges, deploymentRetentionDays, defaultDashboardView, statusSemanticsMode, components.RequiredFieldsJSON(requiredFields), components.StringListJSON(environmentOrder), csrfToken))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/settings.templ`, Line: 64, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/settings.templ`, Line: 97, Col: 470}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"><div class=\"flex flex-col gap-8\"><div class=\"fixed right-6 top-6 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-lg\" x-show=\"toast\" x-transition x-text=\"toast\"></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"><div class=\"flex flex-col gap-8\"><div class=\"fixed right-6 top-6 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-lg\" x-show=\"toast\" x-transition x-text=\"toast\"></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -144,7 +185,7 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"space-y-4\"><div><label class=\"text-xs font-medium text-gray-500\">Auth token</label> <input type=\"text\" x-model=\"authToken\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"tenant-token\"></div><div><label class=\"text-xs font-medium text-gray-500\">Webhook secret</label> <input type=\"text\" x-model=\"webhookSecret\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"webhook-secret\"></div><label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"enabled\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\"> Enabled</label></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div class=\"space-y-4\"><div><label class=\"text-xs font-medium text-gray-500\">Auth token</label> <input type=\"text\" x-model=\"authToken\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"tenant-token\"></div><div><label class=\"text-xs font-medium text-gray-500\">Webhook secret</label> <input type=\"text\" x-model=\"webhookSecret\" class=\"mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"webhook-secret\"></div><label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"enabled\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\"> Enabled</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"showSyncStatus\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\"> Show sync status on dashboards</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"showMetadataBadges\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\"> Show missing metadata badges on dashboards</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"showEnvironmentColumn\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Show environment columns</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"enableSSELiveUpdates\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Enable live updates (SSE)</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"showDeploymentHistory\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Show deployment history on service page</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"showMetadataFilters\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Show metadata filters</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"strictMetadataEnforcement\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Strict metadata enforcement</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"maskSensitiveMetadataValues\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Mask sensitive metadata values</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"allowServiceMetadataEditing\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Allow service metadata editing</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"showOnboardingHints\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Show onboarding hints</label> <label class=\"flex items-center gap-2 text-sm text-gray-700\"><input type=\"checkbox\" x-model=\"showIntegrationTypeBadges\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\">Show integration type badges</label><div class=\"space-y-1\"><label class=\"text-xs font-medium text-gray-500\">Deployment retention days</label><input type=\"number\" min=\"1\" x-model.number=\"deploymentRetentionDays\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\"></div><div class=\"space-y-1\"><label class=\"text-xs font-medium text-gray-500\">Default dashboard view</label><select x-model=\"defaultDashboardView\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\"><option value=\"grid\">Grid</option><option value=\"table\">Table</option></select></div><div class=\"space-y-1\"><label class=\"text-xs font-medium text-gray-500\">Status semantics</label><select x-model=\"statusSemanticsMode\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\"><option value=\"technical\">Technical</option><option value=\"plain\">Plain</option></select></div></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -166,17 +207,39 @@ func SettingsPage(requiredFields []components.ServiceField, authToken string, we
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<form class=\"space-y-4\" @submit.prevent=\"save()\"><div class=\"text-sm text-gray-600\">These fields are required when creating or editing a service.</div><div class=\"rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4\"><div class=\"flex items-center justify-between\"><div><p class=\"text-sm font-medium text-gray-700\">Field list</p><p class=\"text-xs text-gray-500\">Add or remove fields to match your org standards.</p></div><button type=\"button\" class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" @click=\"requiredFields.push({ label: '', type: 'text' })\">Add field</button></div><div class=\"mt-4 space-y-3\"><template x-for=\"(field, index) in requiredFields\" :key=\"index\"><div class=\"flex flex-col gap-3 sm:flex-row sm:items-center\"><input type=\"text\" x-model=\"field.label\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"Field label\"> <select x-model=\"field.type\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200 sm:w-40\"><option value=\"text\">Text</option> <option value=\"url\">URL</option> <option value=\"select\">Select</option></select> <button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:w-auto\" @click=\"requiredFields.splice(index, 1)\">Remove</button></div></template><div class=\"text-xs text-gray-400\" x-show=\"requiredFields.length === 0\">No fields yet.</div></div></div><div class=\"flex justify-end\"><button type=\"submit\" class=\"inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800\" :disabled=\"saving\"><span x-show=\"!saving\">Save settings</span> <span x-show=\"saving\">Saving...</span></button></div></form>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"space-y-4\"><div id=\"metadata-requirements\" class=\"text-sm text-gray-600\">These required metadata fields apply to every service in the organization.</div><div class=\"rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4\"><div class=\"flex items-center justify-between\"><div><p class=\"text-sm font-medium text-gray-700\">Organization-wide metadata fields</p><p class=\"text-xs text-gray-500\">Add, edit, or remove requirements. Changes apply to all services.</p></div><button type=\"button\" class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" @click=\"requiredFields.push({ label: '', type: 'text', filterable: false })\">Add field</button></div><div class=\"mt-4 space-y-3\"><template x-for=\"(field, index) in requiredFields\" :key=\"index\"><div class=\"flex flex-col gap-3 sm:flex-row sm:items-center\"><input type=\"text\" x-model=\"field.label\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"Field label\"> <select x-model=\"field.type\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200 sm:w-40\"><option value=\"text\">Text</option> <option value=\"url\">URL</option> <option value=\"select\">Select</option></select> <label class=\"inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700\"><input type=\"checkbox\" x-model=\"field.filterable\" class=\"h-4 w-4 rounded border-gray-300 text-gray-900\"> Filterable</label> <button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 sm:w-auto\" @click=\"requiredFields.splice(index, 1)\">Remove</button></div></template><div class=\"text-xs text-gray-400\" x-show=\"requiredFields.length === 0\">No metadata requirements yet. Click Add field to create one.</div></div></div></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card("Required service fields").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.Card("Metadata requirements").Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div></main>")
+			templ_7745c5c3_Var7 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+				if !templ_7745c5c3_IsBuffer {
+					defer func() {
+						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+						if templ_7745c5c3_Err == nil {
+							templ_7745c5c3_Err = templ_7745c5c3_BufErr
+						}
+					}()
+				}
+				ctx = templ.InitializeContext(ctx)
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"space-y-4\"><div class=\"text-sm text-gray-600\">Top item is highest priority in service environment view.</div><div class=\"rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4\"><div class=\"flex items-center justify-between\"><div><p class=\"text-sm font-medium text-gray-700\">Environment order</p><p class=\"text-xs text-gray-500\">Example: production, loadtest, uat, qa, uat2</p></div><button type=\"button\" class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" @click=\"environmentOrder.push('')\">Add environment</button></div><div class=\"mt-4 space-y-3\"><template x-for=\"(env, index) in environmentOrder\" :key=\"index\"><div class=\"flex items-center gap-2\"><span class=\"w-6 text-center text-xs text-gray-500\" x-text=\"index + 1\"></span> <input type=\"text\" x-model=\"environmentOrder[index]\" class=\"h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\" placeholder=\"Environment name\"> <button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50\" @click=\"if (index > 0) { const t = environmentOrder[index - 1]; environmentOrder[index - 1] = environmentOrder[index]; environmentOrder[index] = t; }\">Up</button> <button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50\" @click=\"if (index < environmentOrder.length - 1) { const t = environmentOrder[index + 1]; environmentOrder[index + 1] = environmentOrder[index]; environmentOrder[index] = t; }\">Down</button> <button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50\" @click=\"environmentOrder.splice(index, 1)\">Remove</button></div></template><div class=\"text-xs text-gray-400\" x-show=\"environmentOrder.length === 0\">No environment priorities yet.</div></div></div></div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				return nil
+			})
+			templ_7745c5c3_Err = components.Card("Environment priority").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"sticky bottom-4 z-10 flex justify-end\"><button type=\"button\" class=\"inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-lg hover:bg-gray-800\" @click=\"save()\" :disabled=\"saving\"><span x-show=\"!saving\">Save settings</span> <span x-show=\"saving\">Saving...</span></button></div></div></main>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -1,6 +1,6 @@
 package components
 
-templ HomeHeader(statusOptions []StatusOption, environments []EnvironmentOption) {
+templ HomeHeader(statusOptions []StatusOption, showSyncStatus bool, showOnboardingHints bool) {
 	<header class="border-b border-gray-200 bg-white">
 		<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 			<div class="flex flex-col gap-4">
@@ -10,9 +10,11 @@ templ HomeHeader(statusOptions []StatusOption, environments []EnvironmentOption)
 						<p class="text-sm text-gray-500">Track service deployments across environments.</p>
 					</div>
 					<div class="flex items-center gap-2">
-						<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/onboarding">
-							Onboarding
-						</a>
+						if showOnboardingHints {
+							<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/onboarding">
+								Onboarding
+							</a>
+						}
 						<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/deployments">
 							Deployments
 						</a>
@@ -25,17 +27,13 @@ templ HomeHeader(statusOptions []StatusOption, environments []EnvironmentOption)
 					</div>
 				</div>
 				<div class="flex flex-wrap items-center gap-3">
-					<select id="service-env" name="env" class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
-						<option value="all">All environments</option>
-						for _, env := range environments {
-							<option value={ env.Value }>{ env.Label }</option>
-						}
-					</select>
-					<select id="service-status" name="status" class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
-						for _, status := range statusOptions {
-							<option value={ string(status.Value) }>{ status.Label }</option>
-						}
-					</select>
+					if showSyncStatus {
+						<select id="service-status" name="status" class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
+							for _, status := range statusOptions {
+								<option value={ string(status.Value) }>{ status.Label }</option>
+							}
+						</select>
+					}
 				</div>
 			</div>
 		</div>
