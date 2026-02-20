@@ -40,12 +40,7 @@ func deploymentStreamURL(env string, service string) string {
 
 templ DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []components.MetadataFilterOption, showSyncStatus bool, showEnvironmentColumn bool, showMetadataFilters bool, enableSSELiveUpdates bool, statusSemanticsMode string) {
 	@base.Doc("DDash - Deployments") {
-		@base.AppHeader("Deployments", "Recent deployments across all services.") {
-			@components.BackLink("Back to services", "/")
-			<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/settings">
-				Settings
-			</a>
-		}
+		@base.AppHeader("Deployments", "Recent deployments across all services.")
 		<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="{ metadataTag: 'all', matchesMetadata(tags) { const value = (tags || '').toLowerCase(); return this.metadataTag === 'all' || value.includes('|' + this.metadataTag.toLowerCase() + '|'); } }">
 			<div class="mb-4 flex flex-wrap gap-3">
 				<select

@@ -77,7 +77,37 @@ func (v *ViewRoutes) handleOrganizations(c echo.Context) error {
 			Active:  row.ID == activeID,
 		})
 	}
-	return c.Render(http.StatusOK, "", pages.OrganizationsPage(items, next, flashMessage, flashLevel, csrfToken(c)))
+	activeOrg, err := v.orgs.GetOrganizationByID(ctx, activeID)
+	if err != nil {
+		return err
+	}
+	canManageMembers, err := v.orgs.CanManageOrganization(ctx, activeID, userID)
+	if err != nil {
+		return err
+	}
+	members := make([]pages.OrganizationMemberRow, 0)
+	if canManageMembers {
+		rows, listErr := v.orgs.ListMembers(ctx, activeID)
+		if listErr != nil {
+			return listErr
+		}
+		members = make([]pages.OrganizationMemberRow, 0, len(rows))
+		for _, row := range rows {
+			display := strings.TrimSpace(row.Name)
+			if display == "" {
+				display = row.Nickname
+			}
+			members = append(members, pages.OrganizationMemberRow{
+				UserID:   row.UserID,
+				Display:  display,
+				Email:    row.Email,
+				Nickname: row.Nickname,
+				Role:     row.Role,
+				Self:     row.UserID == userID,
+			})
+		}
+	}
+	return c.Render(http.StatusOK, "", pages.OrganizationsPage(items, next, flashMessage, flashLevel, csrfToken(c), activeOrg.Name, canManageMembers, members))
 }
 
 func (v *ViewRoutes) handleOrganizationCurrent(c echo.Context) error {

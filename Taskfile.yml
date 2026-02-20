@@ -47,6 +47,8 @@ tasks:
 
   remote:deploy:
     desc: Build locally and deploy binary + .env over SSH (rsync)
+    deps:
+      - generate
     cmds:
       - go build -o tmp/ddash ./cmd/server
       - ssh {{.SSH_TARGET}} "mkdir -p /tmp/ddash-deploy-{{.SERVICE}}"

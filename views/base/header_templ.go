@@ -29,14 +29,14 @@ func AppHeader(title string, subtitle string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<header class=\"sticky top-0 z-10 border-b bg-white/80 backdrop-blur\"><div class=\"mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 lg:px-8\"><div class=\"min-w-0\"><h1 class=\"truncate text-xl font-semibold tracking-tight text-gray-900\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<header class=\"sticky top-0 z-10 border-b bg-white/80 backdrop-blur\"><div class=\"mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8\"><div class=\"flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between\"><div class=\"min-w-0 flex-1\"><h1 class=\"truncate text-xl font-semibold tracking-tight text-gray-900\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/base/header.templ`, Line: 7, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/base/header.templ`, Line: 8, Col: 84}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -54,7 +54,7 @@ func AppHeader(title string, subtitle string) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(subtitle)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/base/header.templ`, Line: 9, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/base/header.templ`, Line: 10, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -65,7 +65,7 @@ func AppHeader(title string, subtitle string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div><div class=\"flex flex-col gap-2 sm:flex-row sm:items-center\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div><div class=\"flex shrink-0 flex-col items-start gap-2 lg:items-end\"><div class=\"flex flex-wrap items-center gap-2 lg:justify-end\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -73,7 +73,7 @@ func AppHeader(title string, subtitle string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<div x-data=\"{ name: '', load() { fetch('/organizations/current').then((response) => response.ok ? response.json() : null).then((payload) => { this.name = payload && payload.name ? payload.name : ''; }).catch(() => {}); }, go() { const next = window.location.pathname + window.location.search; window.location.href = '/organizations?next=' + encodeURIComponent(next); } }\" x-init=\"load()\" class=\"inline-flex items-center gap-2\"><span class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700\" x-show=\"name\" x-text=\"name\"></span> <button type=\"button\" class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" @click=\"go()\">Organizations</button></div><a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/logout\">Sign out</a></div></div></header>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div><div class=\"flex flex-wrap items-center gap-2 lg:justify-end\"><nav x-data=\"{ path: window.location.pathname, isActive(prefixes) { return prefixes.some((prefix) => prefix === '/' ? this.path === '/' : this.path === prefix || this.path.startsWith(prefix)); }, navClass(prefixes) { return this.isActive(prefixes) ? 'border border-gray-200 bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:bg-white hover:text-gray-900'; } }\" class=\"inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1\"><a href=\"/\" class=\"inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors\" :class=\"navClass(['/','/s/','/onboarding'])\">Services</a> <a href=\"/deployments\" class=\"inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors\" :class=\"navClass(['/deployments'])\">Deployments</a> <a href=\"/settings\" class=\"inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors\" :class=\"navClass(['/settings'])\">Settings</a> <button type=\"button\" class=\"inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors\" :class=\"navClass(['/organizations'])\" onclick=\"const next = window.location.pathname + window.location.search; window.location.href = '/organizations?next=' + encodeURIComponent(next);\">Organizations</button></nav><div class=\"inline-flex items-center gap-2\"><div x-data=\"{ name: '', load() { fetch('/organizations/current').then((response) => response.ok ? response.json() : null).then((payload) => { this.name = payload && payload.name ? payload.name : ''; }).catch(() => {}); } }\" x-init=\"load()\" class=\"inline-flex items-center\"><span class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700\" x-show=\"name\" x-text=\"name\"></span></div><a class=\"inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/logout\">Sign out</a></div></div></div></div></div></header>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -10,15 +10,11 @@ import (
 templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []string, authToken string, webhookSecret string, enabled bool, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, enableSSELiveUpdates bool, showDeploymentHistory bool, showMetadataFilters bool, strictMetadataEnforcement bool, maskSensitiveMetadataValues bool, allowServiceMetadataEditing bool, showOnboardingHints bool, showIntegrationTypeBadges bool, deploymentRetentionDays int, defaultDashboardView string, statusSemanticsMode string, csrfToken string) {
 	@base.Doc("DDash - Settings") {
 		@base.AppHeader("Settings", "Configure defaults every service must provide.") {
-			@components.BackLink("Back to services", "/")
 			if showOnboardingHints {
 				<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/onboarding">
 					Onboarding
 				</a>
 			}
-			<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/deployments">
-				Deployments
-			</a>
 		}
 		<main
 			class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8"
@@ -43,6 +39,7 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 					requiredFields: %s,
 					environmentOrder: %s,
 					csrfToken: %q,
+					activeTab: 'general',
 					saving: false,
 				toast: '',
 				timer: null,
@@ -97,12 +94,31 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 			}`, authToken, webhookSecret, enabled, showSyncStatus, showMetadataBadges, showEnvironmentColumn, enableSSELiveUpdates, showDeploymentHistory, showMetadataFilters, strictMetadataEnforcement, maskSensitiveMetadataValues, allowServiceMetadataEditing, showOnboardingHints, showIntegrationTypeBadges, deploymentRetentionDays, defaultDashboardView, statusSemanticsMode, components.RequiredFieldsJSON(requiredFields), components.StringListJSON(environmentOrder), csrfToken) }
 		>
 			<div class="flex flex-col gap-8">
+				<div class="inline-flex w-fit items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+					<button
+						type="button"
+						class="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition"
+						:class="activeTab === 'general' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+						@click="activeTab = 'general'"
+					>
+						General
+					</button>
+					<button
+						type="button"
+						class="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition"
+						:class="activeTab === 'features' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'"
+						@click="activeTab = 'features'"
+					>
+						Features
+					</button>
+				</div>
 				<div
 					class="fixed right-6 top-6 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-lg"
 					x-show="toast"
 					x-transition
 					x-text="toast"
 				></div>
+				<div x-show="activeTab === 'general'" class="space-y-8">
 				@components.Card("Organization") {
 					<div class="space-y-4">
 						<div>
@@ -127,26 +143,6 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 							<input type="checkbox" x-model="enabled" class="h-4 w-4 rounded border-gray-300 text-gray-900" />
 							Enabled
 						</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700">
-							<input type="checkbox" x-model="showSyncStatus" class="h-4 w-4 rounded border-gray-300 text-gray-900" />
-							Show sync status on dashboards
-						</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700">
-							<input type="checkbox" x-model="showMetadataBadges" class="h-4 w-4 rounded border-gray-300 text-gray-900" />
-							Show missing metadata badges on dashboards
-						</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showEnvironmentColumn" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show environment columns</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="enableSSELiveUpdates" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Enable live updates (SSE)</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showDeploymentHistory" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show deployment history on service page</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showMetadataFilters" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show metadata filters</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="strictMetadataEnforcement" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Strict metadata enforcement</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="maskSensitiveMetadataValues" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Mask sensitive metadata values</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="allowServiceMetadataEditing" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Allow service metadata editing</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showOnboardingHints" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show onboarding hints</label>
-						<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showIntegrationTypeBadges" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show integration type badges</label>
-						<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Deployment retention days</label><input type="number" min="1" x-model.number="deploymentRetentionDays" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200" /></div>
-						<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Default dashboard view</label><select x-model="defaultDashboardView" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"><option value="grid">Grid</option><option value="table">Table</option></select></div>
-						<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Status semantics</label><select x-model="statusSemanticsMode" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"><option value="technical">Technical</option><option value="plain">Plain</option></select></div>
 					</div>
 				}
 
@@ -242,6 +238,28 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 						</div>
 					</div>
 				}
+				</div>
+
+				<div x-show="activeTab === 'features'" class="space-y-8">
+					@components.Card("Dashboard and behavior") {
+						<div class="space-y-4">
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showSyncStatus" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show sync status on dashboards</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showMetadataBadges" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show missing metadata badges on dashboards</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showEnvironmentColumn" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show environment columns</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="enableSSELiveUpdates" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Enable live updates (SSE)</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showDeploymentHistory" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show deployment history on service page</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showMetadataFilters" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show metadata filters</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="strictMetadataEnforcement" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Strict metadata enforcement</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="maskSensitiveMetadataValues" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Mask sensitive metadata values</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="allowServiceMetadataEditing" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Allow service metadata editing</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showOnboardingHints" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show onboarding hints</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showIntegrationTypeBadges" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show integration type badges</label>
+							<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Deployment retention days</label><input type="number" min="1" x-model.number="deploymentRetentionDays" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200" /></div>
+							<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Default dashboard view</label><select x-model="defaultDashboardView" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"><option value="grid">Grid</option><option value="table">Table</option></select></div>
+							<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Status semantics</label><select x-model="statusSemanticsMode" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"><option value="technical">Technical</option><option value="plain">Plain</option></select></div>
+						</div>
+					}
+				</div>
 
 				<div class="sticky bottom-4 z-10 flex justify-end">
 					<button type="button" class="inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-lg hover:bg-gray-800" @click="save()" :disabled="saving">
