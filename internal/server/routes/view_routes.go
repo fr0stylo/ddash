@@ -2,6 +2,8 @@ package routes
 
 import (
 	"context"
+	"errors"
+	"net/http"
 
 	"github.com/labstack/echo/v4"
 
@@ -30,33 +32,61 @@ func NewViewRoutes(configStore ports.AppStore, readStore ports.ServiceReadStore)
 // RegisterRoutes registers view routes.
 func (v *ViewRoutes) RegisterRoutes(s *echo.Echo) {
 	authed := s.Group("", RequireAuth)
+	authed.GET("/welcome", v.handleWelcome)
+	authed.POST("/welcome/create", v.handleWelcomeCreateOrganization)
+	authed.POST("/welcome/join", v.handleWelcomeJoinOrganization)
 
-	authed.GET("/", v.handleHome)
-	authed.GET("/s/:name", v.handleServiceDetails)
-	authed.POST("/s/:name/metadata", v.handleServiceMetadataUpdate)
-	authed.GET("/settings", v.handleSettings)
-	authed.POST("/settings", v.handleSettingsUpdate)
-	authed.GET("/organizations", v.handleOrganizations)
-	authed.GET("/organizations/current", v.handleOrganizationCurrent)
-	authed.POST("/organizations", v.handleOrganizationCreate)
-	authed.POST("/organizations/rename", v.handleOrganizationRename)
-	authed.POST("/organizations/toggle", v.handleOrganizationToggle)
-	authed.POST("/organizations/delete", v.handleOrganizationDelete)
-	authed.POST("/organizations/switch", v.handleOrganizationSwitch)
-	authed.GET("/organizations/members", v.handleOrganizationMembers)
-	authed.POST("/organizations/members/add", v.handleOrganizationMemberAdd)
-	authed.POST("/organizations/members/role", v.handleOrganizationMemberRole)
-	authed.POST("/organizations/members/remove", v.handleOrganizationMemberRemove)
-	authed.GET("/onboarding", v.handleOnboarding)
+	orgAuthed := authed.Group("", v.requireOrganizationMembership)
 
-	authed.GET("/deployments", v.handleDeployments)
-	authed.GET("/deployments/filter", v.handleDeploymentFilter)
-	authed.GET("/services/stream", v.handleServiceStream)
+	orgAuthed.GET("/", v.handleHome)
+	orgAuthed.GET("/s/:name", v.handleServiceDetails)
+	orgAuthed.POST("/s/:name/metadata", v.handleServiceMetadataUpdate)
+	orgAuthed.GET("/settings", v.handleSettings)
+	orgAuthed.POST("/settings", v.handleSettingsUpdate)
+	orgAuthed.GET("/organizations", v.handleOrganizations)
+	orgAuthed.GET("/organizations/current", v.handleOrganizationCurrent)
+	orgAuthed.POST("/organizations", v.handleOrganizationCreate)
+	orgAuthed.POST("/organizations/rename", v.handleOrganizationRename)
+	orgAuthed.POST("/organizations/toggle", v.handleOrganizationToggle)
+	orgAuthed.POST("/organizations/delete", v.handleOrganizationDelete)
+	orgAuthed.POST("/organizations/switch", v.handleOrganizationSwitch)
+	orgAuthed.POST("/organizations/members/add", v.handleOrganizationMemberAdd)
+	orgAuthed.POST("/organizations/members/role", v.handleOrganizationMemberRole)
+	orgAuthed.POST("/organizations/members/remove", v.handleOrganizationMemberRemove)
+	orgAuthed.POST("/organizations/join-requests/approve", v.handleOrganizationJoinRequestApprove)
+	orgAuthed.POST("/organizations/join-requests/reject", v.handleOrganizationJoinRequestReject)
+	orgAuthed.GET("/onboarding", v.handleOnboarding)
 
-	authed.GET("/services/grid", v.handleServiceGrid)
-	authed.GET("/services/table", v.handleServiceTable)
-	authed.GET("/services/filter", v.handleServiceFilter)
-	authed.GET("/deployments/stream", v.handleDeploymentStream)
+	orgAuthed.GET("/deployments", v.handleDeployments)
+	orgAuthed.GET("/deployments/filter", v.handleDeploymentFilter)
+	orgAuthed.GET("/services/stream", v.handleServiceStream)
+
+	orgAuthed.GET("/services/grid", v.handleServiceGrid)
+	orgAuthed.GET("/services/table", v.handleServiceTable)
+	orgAuthed.GET("/services/filter", v.handleServiceFilter)
+	orgAuthed.GET("/deployments/stream", v.handleDeploymentStream)
+}
+
+func (v *ViewRoutes) requireOrganizationMembership(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+		userID, ok := GetAuthUserID(c)
+		if !ok || userID <= 0 {
+			return c.Redirect(http.StatusFound, "/login")
+		}
+		activeID, _ := GetActiveOrganizationID(c)
+		org, err := v.orgs.GetActiveOrDefaultOrganizationForUser(ctx, userID, activeID)
+		if err != nil {
+			if errors.Is(err, appservices.ErrOrganizationMembershipRequired) {
+				return c.Redirect(http.StatusFound, "/welcome")
+			}
+			return err
+		}
+		if err := SetActiveOrganizationID(c, org.ID); err != nil {
+			return err
+		}
+		return next(c)
+	}
 }
 
 func (v *ViewRoutes) loadDashboardSettings(ctx context.Context, organizationID int64) (appservices.OrganizationSettings, error) {

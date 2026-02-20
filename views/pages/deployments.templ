@@ -42,14 +42,11 @@ templ DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []
 	@base.Doc("DDash - Deployments") {
 		@base.AppHeader("Deployments", "Recent deployments across all services.")
 		<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="{ metadataTag: 'all', matchesMetadata(tags) { const value = (tags || '').toLowerCase(); return this.metadataTag === 'all' || value.includes('|' + this.metadataTag.toLowerCase() + '|'); } }">
-			<div class="mb-4 flex flex-wrap gap-3">
+			<form id="deployment-filters" class="mb-4 flex flex-wrap gap-3" hx-get="/deployments/filter" hx-target="#deployment-results" hx-swap="outerHTML" hx-trigger="change delay:50ms">
+				<input type="hidden" name="env" value="all" />
 				<select
 					id="deployment-service"
 					name="service"
-					hx-get="/deployments/filter"
-					hx-target="#deployment-results"
-					hx-swap="outerHTML"
-					hx-trigger="change"
 					class="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"
 				>
 					for _, service := range deploymentServices(deployments) {
@@ -63,7 +60,7 @@ templ DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []
 						}
 					</select>
 				}
-			</div>
+			</form>
 			@DeploymentResults(deployments, "all", "all", showSyncStatus, showEnvironmentColumn, enableSSELiveUpdates, statusSemanticsMode)
 		</main>
 	}

@@ -1,0 +1,48 @@
+name: Publish CDEvent On Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Publish tag event to DDash
+        if: ${{ secrets.DDASH_ENDPOINT != '' && secrets.DDASH_AUTH_TOKEN != '' && secrets.DDASH_WEBHOOK_SECRET != '' }}
+        env:
+          DDASH_ENDPOINT: ${{ secrets.DDASH_ENDPOINT }}
+          DDASH_AUTH_TOKEN: ${{ secrets.DDASH_AUTH_TOKEN }}
+          DDASH_WEBHOOK_SECRET: ${{ secrets.DDASH_WEBHOOK_SECRET }}
+          DDASH_EVENT_SOURCE: github/actions
+          SERVICE_NAME: ${{ github.event.repository.name }}
+          ENVIRONMENT_NAME: production
+          ARTIFACT_REF: pkg:generic/${{ github.event.repository.name }}@${{ github.sha }}
+        run: |
+          go run ./cmd/eventpublisher \
+            -endpoint "$DDASH_ENDPOINT" \
+            -token "$DDASH_AUTH_TOKEN" \
+            -secret "$DDASH_WEBHOOK_SECRET" \
+            -type service.published \
+            -service "$SERVICE_NAME" \
+            -environment "$ENVIRONMENT_NAME" \
+            -artifact "$ARTIFACT_REF"
+
+      - name: Skip when DDash secrets are missing
+        if: ${{ !(secrets.DDASH_ENDPOINT != '' && secrets.DDASH_AUTH_TOKEN != '' && secrets.DDASH_WEBHOOK_SECRET != '') }}
+        run: |
+          echo "Skipping DDash CDEvent publish."
+          echo "Set repository secrets: DDASH_ENDPOINT, DDASH_AUTH_TOKEN, DDASH_WEBHOOK_SECRET"

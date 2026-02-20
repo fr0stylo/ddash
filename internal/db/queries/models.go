@@ -59,6 +59,7 @@ type Organization struct {
 	Enabled       int64
 	CreatedAt     sql.NullTime
 	UpdatedAt     sql.NullTime
+	JoinCode      sql.NullString
 }
 
 type OrganizationEnvironmentPriority struct {
@@ -75,6 +76,18 @@ type OrganizationFeature struct {
 	OrganizationID int64
 	FeatureKey     string
 	IsEnabled      int64
+	CreatedAt      sql.NullTime
+	UpdatedAt      sql.NullTime
+}
+
+type OrganizationJoinRequest struct {
+	ID             int64
+	OrganizationID int64
+	UserID         int64
+	RequestCode    string
+	Status         string
+	ReviewedBy     sql.NullInt64
+	ReviewedAt     sql.NullTime
 	CreatedAt      sql.NullTime
 	UpdatedAt      sql.NullTime
 }

@@ -74,9 +74,13 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 											<tr class="hover:bg-gray-50">
 												<td class="px-4 py-3 font-medium text-gray-900">{ env.Name }</td>
 												<td class="px-4 py-3 text-gray-600">{ env.LastDeploy }</td>
-												<td class="px-4 py-3 font-mono text-xs text-gray-700">
-													<a class="text-gray-700 hover:text-gray-900 underline-offset-4 hover:underline" href={ env.CommitURL } target="_blank" rel="noreferrer">{ env.DeployedRef }</a>
-												</td>
+											<td class="px-4 py-3 font-mono text-xs text-gray-700">
+													if env.CommitURL != "" {
+														<a class="text-gray-700 hover:text-gray-900 underline-offset-4 hover:underline" href={ env.CommitURL } target="_blank" rel="noreferrer">{ env.DeployedRef }</a>
+													} else {
+														<span>{ env.DeployedRef }</span>
+													}
+											</td>
 											</tr>
 										}
 									</tbody>
@@ -146,7 +150,11 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 												<span class="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600">{ record.Environment }</span>
 											}
 										</div>
-										<a class="font-mono text-xs text-gray-600 hover:text-gray-900" href={ record.ReleaseURL } target="_blank" rel="noreferrer">{ record.Ref }</a>
+										if record.ReleaseURL != "" {
+											<a class="font-mono text-xs text-gray-600 hover:text-gray-900" href={ record.ReleaseURL } target="_blank" rel="noreferrer">{ record.Ref }</a>
+										} else {
+											<span class="font-mono text-xs text-gray-600">{ record.Ref }</span>
+										}
 									</div>
 								}
 							</div>

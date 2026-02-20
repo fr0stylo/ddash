@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/fr0stylo/ddash/internal/db/queries"
 )
@@ -9,6 +10,7 @@ import (
 type storeDatabase interface {
 	GetDefaultOrganization(ctx context.Context) (queries.Organization, error)
 	GetOrganizationByID(ctx context.Context, id int64) (queries.Organization, error)
+	GetOrganizationByJoinCode(ctx context.Context, joinCode sql.NullString) (queries.Organization, error)
 	ListOrganizations(ctx context.Context) ([]queries.Organization, error)
 	UpdateOrganizationName(ctx context.Context, organizationID int64, name string) error
 	UpdateOrganizationEnabled(ctx context.Context, organizationID int64, enabled bool) error
@@ -23,6 +25,9 @@ type storeDatabase interface {
 	DeleteOrganizationMember(ctx context.Context, organizationID, userID int64) error
 	CountOrganizationOwners(ctx context.Context, organizationID int64) (int64, error)
 	ListOrganizationMembers(ctx context.Context, organizationID int64) ([]queries.ListOrganizationMembersRow, error)
+	UpsertOrganizationJoinRequest(ctx context.Context, params queries.UpsertOrganizationJoinRequestParams) error
+	ListPendingOrganizationJoinRequests(ctx context.Context, organizationID int64) ([]queries.ListPendingOrganizationJoinRequestsRow, error)
+	SetOrganizationJoinRequestStatus(ctx context.Context, params queries.SetOrganizationJoinRequestStatusParams) error
 	ListOrganizationRequiredFields(ctx context.Context, organizationID int64) ([]queries.ListOrganizationRequiredFieldsRow, error)
 	ListOrganizationEnvironmentPriorities(ctx context.Context, organizationID int64) ([]queries.ListOrganizationEnvironmentPrioritiesRow, error)
 	ListOrganizationFeatures(ctx context.Context, organizationID int64) ([]queries.ListOrganizationFeaturesRow, error)

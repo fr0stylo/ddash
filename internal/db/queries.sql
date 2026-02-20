@@ -16,6 +16,12 @@ FROM organizations
 WHERE id = ?
 LIMIT 1;
 
+-- name: GetOrganizationByJoinCode :one
+SELECT *
+FROM organizations
+WHERE join_code = ?
+LIMIT 1;
+
 -- name: ListOrganizations :many
 SELECT *
 FROM organizations
@@ -103,9 +109,39 @@ ORDER BY
   COALESCE(NULLIF(u.name, ''), u.nickname, u.email);
 
 -- name: CreateOrganization :one
-INSERT INTO organizations (name, auth_token, webhook_secret, enabled)
-VALUES (sqlc.arg('name'), sqlc.arg('auth_token'), sqlc.arg('webhook_secret'), sqlc.arg('enabled'))
+INSERT INTO organizations (name, auth_token, join_code, webhook_secret, enabled)
+VALUES (sqlc.arg('name'), sqlc.arg('auth_token'), sqlc.arg('join_code'), sqlc.arg('webhook_secret'), sqlc.arg('enabled'))
 RETURNING *;
+
+-- name: UpsertOrganizationJoinRequest :exec
+INSERT INTO organization_join_requests (organization_id, user_id, request_code, status)
+VALUES (?, ?, ?, 'pending')
+ON CONFLICT(organization_id, user_id) DO UPDATE SET
+  request_code = excluded.request_code,
+  status = 'pending',
+  reviewed_by = NULL,
+  reviewed_at = NULL,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- name: ListPendingOrganizationJoinRequests :many
+SELECT
+  r.organization_id,
+  r.user_id,
+  r.request_code,
+  r.status,
+  u.email,
+  u.nickname,
+  u.name
+FROM organization_join_requests r
+JOIN users u ON u.id = r.user_id
+WHERE r.organization_id = ?
+  AND r.status = 'pending'
+ORDER BY r.created_at, r.id;
+
+-- name: SetOrganizationJoinRequestStatus :exec
+UPDATE organization_join_requests
+SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE organization_id = ? AND user_id = ?;
 
 -- name: ListOrganizationRequiredFields :many
 SELECT id, organization_id, label, field_type, sort_order, is_filterable

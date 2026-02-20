@@ -106,14 +106,15 @@ func (q *Queries) CountOrganizationOwners(ctx context.Context, organizationID in
 }
 
 const createOrganization = `-- name: CreateOrganization :one
-INSERT INTO organizations (name, auth_token, webhook_secret, enabled)
-VALUES (?1, ?2, ?3, ?4)
-RETURNING id, name, auth_token, webhook_secret, enabled, created_at, updated_at
+INSERT INTO organizations (name, auth_token, join_code, webhook_secret, enabled)
+VALUES (?1, ?2, ?3, ?4, ?5)
+RETURNING id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
 `
 
 type CreateOrganizationParams struct {
 	Name          string
 	AuthToken     string
+	JoinCode      sql.NullString
 	WebhookSecret string
 	Enabled       int64
 }
@@ -122,6 +123,7 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 	row := q.db.QueryRowContext(ctx, createOrganization,
 		arg.Name,
 		arg.AuthToken,
+		arg.JoinCode,
 		arg.WebhookSecret,
 		arg.Enabled,
 	)
@@ -134,6 +136,7 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.JoinCode,
 	)
 	return i, err
 }
@@ -262,7 +265,7 @@ func (q *Queries) DeleteServiceMetadataByService(ctx context.Context, arg Delete
 }
 
 const getDefaultOrganization = `-- name: GetDefaultOrganization :one
-SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at
+SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
 FROM organizations
 ORDER BY id
 LIMIT 1
@@ -279,12 +282,13 @@ func (q *Queries) GetDefaultOrganization(ctx context.Context) (Organization, err
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.JoinCode,
 	)
 	return i, err
 }
 
 const getOrganizationByAuthToken = `-- name: GetOrganizationByAuthToken :one
-SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at
+SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
 FROM organizations
 WHERE auth_token = ?
 LIMIT 1
@@ -301,12 +305,13 @@ func (q *Queries) GetOrganizationByAuthToken(ctx context.Context, authToken stri
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.JoinCode,
 	)
 	return i, err
 }
 
 const getOrganizationByID = `-- name: GetOrganizationByID :one
-SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at
+SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
 FROM organizations
 WHERE id = ?
 LIMIT 1
@@ -323,6 +328,30 @@ func (q *Queries) GetOrganizationByID(ctx context.Context, id int64) (Organizati
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.JoinCode,
+	)
+	return i, err
+}
+
+const getOrganizationByJoinCode = `-- name: GetOrganizationByJoinCode :one
+SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
+FROM organizations
+WHERE join_code = ?
+LIMIT 1
+`
+
+func (q *Queries) GetOrganizationByJoinCode(ctx context.Context, joinCode sql.NullString) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationByJoinCode, joinCode)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.AuthToken,
+		&i.WebhookSecret,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.JoinCode,
 	)
 	return i, err
 }
@@ -849,7 +878,7 @@ func (q *Queries) ListOrganizationRequiredFields(ctx context.Context, organizati
 }
 
 const listOrganizations = `-- name: ListOrganizations :many
-SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at
+SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
 FROM organizations
 ORDER BY name, id
 `
@@ -871,6 +900,7 @@ func (q *Queries) ListOrganizations(ctx context.Context) ([]Organization, error)
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.JoinCode,
 		); err != nil {
 			return nil, err
 		}
@@ -886,7 +916,7 @@ func (q *Queries) ListOrganizations(ctx context.Context) ([]Organization, error)
 }
 
 const listOrganizationsByUser = `-- name: ListOrganizationsByUser :many
-SELECT o.id, o.name, o.auth_token, o.webhook_secret, o.enabled, o.created_at, o.updated_at
+SELECT o.id, o.name, o.auth_token, o.webhook_secret, o.enabled, o.created_at, o.updated_at, o.join_code
 FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 WHERE m.user_id = ?
@@ -910,6 +940,64 @@ func (q *Queries) ListOrganizationsByUser(ctx context.Context, userID int64) ([]
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.JoinCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingOrganizationJoinRequests = `-- name: ListPendingOrganizationJoinRequests :many
+SELECT
+  r.organization_id,
+  r.user_id,
+  r.request_code,
+  r.status,
+  u.email,
+  u.nickname,
+  u.name
+FROM organization_join_requests r
+JOIN users u ON u.id = r.user_id
+WHERE r.organization_id = ?
+  AND r.status = 'pending'
+ORDER BY r.created_at, r.id
+`
+
+type ListPendingOrganizationJoinRequestsRow struct {
+	OrganizationID int64
+	UserID         int64
+	RequestCode    string
+	Status         string
+	Email          string
+	Nickname       string
+	Name           sql.NullString
+}
+
+func (q *Queries) ListPendingOrganizationJoinRequests(ctx context.Context, organizationID int64) ([]ListPendingOrganizationJoinRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPendingOrganizationJoinRequests, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPendingOrganizationJoinRequestsRow
+	for rows.Next() {
+		var i ListPendingOrganizationJoinRequestsRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.UserID,
+			&i.RequestCode,
+			&i.Status,
+			&i.Email,
+			&i.Nickname,
+			&i.Name,
 		); err != nil {
 			return nil, err
 		}
@@ -1240,6 +1328,29 @@ func (q *Queries) ListServiceMetadataByService(ctx context.Context, arg ListServ
 	return items, nil
 }
 
+const setOrganizationJoinRequestStatus = `-- name: SetOrganizationJoinRequestStatus :exec
+UPDATE organization_join_requests
+SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE organization_id = ? AND user_id = ?
+`
+
+type SetOrganizationJoinRequestStatusParams struct {
+	Status         string
+	ReviewedBy     sql.NullInt64
+	OrganizationID int64
+	UserID         int64
+}
+
+func (q *Queries) SetOrganizationJoinRequestStatus(ctx context.Context, arg SetOrganizationJoinRequestStatusParams) error {
+	_, err := q.db.ExecContext(ctx, setOrganizationJoinRequestStatus,
+		arg.Status,
+		arg.ReviewedBy,
+		arg.OrganizationID,
+		arg.UserID,
+	)
+	return err
+}
+
 const updateOrganizationEnabled = `-- name: UpdateOrganizationEnabled :exec
 UPDATE organizations
 SET enabled = ?, updated_at = CURRENT_TIMESTAMP
@@ -1311,6 +1422,28 @@ type UpsertOrganizationFeatureParams struct {
 
 func (q *Queries) UpsertOrganizationFeature(ctx context.Context, arg UpsertOrganizationFeatureParams) error {
 	_, err := q.db.ExecContext(ctx, upsertOrganizationFeature, arg.OrganizationID, arg.FeatureKey, arg.IsEnabled)
+	return err
+}
+
+const upsertOrganizationJoinRequest = `-- name: UpsertOrganizationJoinRequest :exec
+INSERT INTO organization_join_requests (organization_id, user_id, request_code, status)
+VALUES (?, ?, ?, 'pending')
+ON CONFLICT(organization_id, user_id) DO UPDATE SET
+  request_code = excluded.request_code,
+  status = 'pending',
+  reviewed_by = NULL,
+  reviewed_at = NULL,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertOrganizationJoinRequestParams struct {
+	OrganizationID int64
+	UserID         int64
+	RequestCode    string
+}
+
+func (q *Queries) UpsertOrganizationJoinRequest(ctx context.Context, arg UpsertOrganizationJoinRequestParams) error {
+	_, err := q.db.ExecContext(ctx, upsertOrganizationJoinRequest, arg.OrganizationID, arg.UserID, arg.RequestCode)
 	return err
 }
 

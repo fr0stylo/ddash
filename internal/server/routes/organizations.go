@@ -28,6 +28,11 @@ func organizationsRedirectURL(message, level string) string {
 	return "/organizations?" + values.Encode()
 }
 
+func organizationsMembersRedirectURL(message, level string) string {
+	base := organizationsRedirectURL(message, level)
+	return base + "#members"
+}
+
 func (v *ViewRoutes) currentOrganizationID(c echo.Context) (int64, error) {
 	ctx := c.Request().Context()
 	userID, ok := GetAuthUserID(c)
@@ -86,6 +91,7 @@ func (v *ViewRoutes) handleOrganizations(c echo.Context) error {
 		return err
 	}
 	members := make([]pages.OrganizationMemberRow, 0)
+	pending := make([]pages.OrganizationJoinRequestRow, 0)
 	if canManageMembers {
 		rows, listErr := v.orgs.ListMembers(ctx, activeID)
 		if listErr != nil {
@@ -106,8 +112,26 @@ func (v *ViewRoutes) handleOrganizations(c echo.Context) error {
 				Self:     row.UserID == userID,
 			})
 		}
+		requests, reqErr := v.orgs.ListPendingJoinRequests(ctx, activeID)
+		if reqErr != nil {
+			return reqErr
+		}
+		pending = make([]pages.OrganizationJoinRequestRow, 0, len(requests))
+		for _, request := range requests {
+			display := strings.TrimSpace(request.Name)
+			if display == "" {
+				display = request.Nickname
+			}
+			pending = append(pending, pages.OrganizationJoinRequestRow{
+				UserID:      request.UserID,
+				Display:     display,
+				Email:       request.Email,
+				Nickname:    request.Nickname,
+				RequestCode: request.RequestCode,
+			})
+		}
 	}
-	return c.Render(http.StatusOK, "", pages.OrganizationsPage(items, next, flashMessage, flashLevel, csrfToken(c), activeOrg.Name, canManageMembers, members))
+	return c.Render(http.StatusOK, "", pages.OrganizationsPage(items, next, flashMessage, flashLevel, csrfToken(c), activeOrg.Name, activeOrg.JoinCode, canManageMembers, members, pending))
 }
 
 func (v *ViewRoutes) handleOrganizationCurrent(c echo.Context) error {
@@ -271,47 +295,6 @@ func (v *ViewRoutes) handleOrganizationDelete(c echo.Context) error {
 	return c.Redirect(http.StatusFound, organizationsRedirectURL("Organization deleted", "success"))
 }
 
-func (v *ViewRoutes) handleOrganizationMembers(c echo.Context) error {
-	ctx := c.Request().Context()
-	orgID, err := v.currentOrganizationID(c)
-	if err != nil {
-		return err
-	}
-	if err := v.requireOrganizationAdmin(c, orgID); err != nil {
-		return err
-	}
-	org, err := v.orgs.GetOrganizationByID(ctx, orgID)
-	if err != nil {
-		return err
-	}
-	rows, err := v.orgs.ListMembers(ctx, orgID)
-	if err != nil {
-		return err
-	}
-	selfID, _ := GetAuthUserID(c)
-	items := make([]pages.OrganizationMemberRow, 0, len(rows))
-	for _, row := range rows {
-		display := strings.TrimSpace(row.Name)
-		if display == "" {
-			display = row.Nickname
-		}
-		items = append(items, pages.OrganizationMemberRow{
-			UserID:   row.UserID,
-			Display:  display,
-			Email:    row.Email,
-			Nickname: row.Nickname,
-			Role:     row.Role,
-			Self:     row.UserID == selfID,
-		})
-	}
-	flashMessage := strings.TrimSpace(c.QueryParam("msg"))
-	flashLevel := strings.TrimSpace(c.QueryParam("level"))
-	if flashLevel != "error" {
-		flashLevel = "success"
-	}
-	return c.Render(http.StatusOK, "", pages.OrganizationMembersPage(org.Name, items, flashMessage, flashLevel, csrfToken(c)))
-}
-
 func (v *ViewRoutes) handleOrganizationMemberAdd(c echo.Context) error {
 	ctx := c.Request().Context()
 	orgID, err := v.currentOrganizationID(c)
@@ -324,9 +307,9 @@ func (v *ViewRoutes) handleOrganizationMemberAdd(c echo.Context) error {
 	identity := strings.TrimSpace(c.FormValue("identity"))
 	role := strings.TrimSpace(c.FormValue("role"))
 	if err := v.orgs.AddMemberByLookup(ctx, orgID, identity, role); err != nil {
-		return c.Redirect(http.StatusFound, "/organizations/members?msg=Unable+to+add+member&level=error")
+		return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Unable to add member", "error"))
 	}
-	return c.Redirect(http.StatusFound, "/organizations/members?msg=Member+added&level=success")
+	return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Member added", "success"))
 }
 
 func (v *ViewRoutes) handleOrganizationMemberRole(c echo.Context) error {
@@ -340,16 +323,16 @@ func (v *ViewRoutes) handleOrganizationMemberRole(c echo.Context) error {
 	}
 	userID, err := strconv.ParseInt(strings.TrimSpace(c.FormValue("userID")), 10, 64)
 	if err != nil || userID <= 0 {
-		return c.Redirect(http.StatusFound, "/organizations/members?msg=Invalid+user&level=error")
+		return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Invalid user", "error"))
 	}
 	role := strings.TrimSpace(c.FormValue("role"))
 	if err := v.orgs.UpdateMemberRole(ctx, orgID, userID, role); err != nil {
 		if errors.Is(err, services.ErrCannotRemoveLastOwner) {
-			return c.Redirect(http.StatusFound, "/organizations/members?msg=Cannot+remove+last+owner&level=error")
+			return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Cannot remove last owner", "error"))
 		}
-		return c.Redirect(http.StatusFound, "/organizations/members?msg=Unable+to+update+role&level=error")
+		return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Unable to update role", "error"))
 	}
-	return c.Redirect(http.StatusFound, "/organizations/members?msg=Role+updated&level=success")
+	return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Role updated", "success"))
 }
 
 func (v *ViewRoutes) handleOrganizationMemberRemove(c echo.Context) error {
@@ -363,15 +346,61 @@ func (v *ViewRoutes) handleOrganizationMemberRemove(c echo.Context) error {
 	}
 	userID, err := strconv.ParseInt(strings.TrimSpace(c.FormValue("userID")), 10, 64)
 	if err != nil || userID <= 0 {
-		return c.Redirect(http.StatusFound, "/organizations/members?msg=Invalid+user&level=error")
+		return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Invalid user", "error"))
 	}
 	if err := v.orgs.RemoveMember(ctx, orgID, userID); err != nil {
 		if errors.Is(err, services.ErrCannotRemoveLastOwner) {
-			return c.Redirect(http.StatusFound, "/organizations/members?msg=Cannot+remove+last+owner&level=error")
+			return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Cannot remove last owner", "error"))
 		}
-		return c.Redirect(http.StatusFound, "/organizations/members?msg=Unable+to+remove+member&level=error")
+		return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Unable to remove member", "error"))
 	}
-	return c.Redirect(http.StatusFound, "/organizations/members?msg=Member+removed&level=success")
+	return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Member removed", "success"))
+}
+
+func (v *ViewRoutes) handleOrganizationJoinRequestApprove(c echo.Context) error {
+	ctx := c.Request().Context()
+	orgID, err := v.currentOrganizationID(c)
+	if err != nil {
+		return err
+	}
+	if err := v.requireOrganizationAdmin(c, orgID); err != nil {
+		return err
+	}
+	reviewerID, ok := GetAuthUserID(c)
+	if !ok || reviewerID <= 0 {
+		return c.Redirect(http.StatusFound, "/login")
+	}
+	userID, err := strconv.ParseInt(strings.TrimSpace(c.FormValue("userID")), 10, 64)
+	if err != nil || userID <= 0 {
+		return c.Redirect(http.StatusFound, organizationsRedirectURL("Invalid join request user", "error"))
+	}
+	if err := v.orgs.ApproveJoinRequest(ctx, orgID, userID, reviewerID); err != nil {
+		return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Unable to approve join request", "error"))
+	}
+	return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Join request approved", "success"))
+}
+
+func (v *ViewRoutes) handleOrganizationJoinRequestReject(c echo.Context) error {
+	ctx := c.Request().Context()
+	orgID, err := v.currentOrganizationID(c)
+	if err != nil {
+		return err
+	}
+	if err := v.requireOrganizationAdmin(c, orgID); err != nil {
+		return err
+	}
+	reviewerID, ok := GetAuthUserID(c)
+	if !ok || reviewerID <= 0 {
+		return c.Redirect(http.StatusFound, "/login")
+	}
+	userID, err := strconv.ParseInt(strings.TrimSpace(c.FormValue("userID")), 10, 64)
+	if err != nil || userID <= 0 {
+		return c.Redirect(http.StatusFound, organizationsRedirectURL("Invalid join request user", "error"))
+	}
+	if err := v.orgs.RejectJoinRequest(ctx, orgID, userID, reviewerID); err != nil {
+		return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Unable to reject join request", "error"))
+	}
+	return c.Redirect(http.StatusFound, organizationsMembersRedirectURL("Join request rejected", "success"))
 }
 
 func (v *ViewRoutes) requireOrganizationAdmin(c echo.Context, organizationID int64) error {

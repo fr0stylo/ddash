@@ -1,0 +1,61 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/fr0stylo/ddash/pkg/eventpublisher"
+)
+
+func main() {
+	endpoint := flag.String("endpoint", envOrDefault("DDASH_ENDPOINT", ""), "DDash base URL (or DDASH_ENDPOINT)")
+	token := flag.String("token", envOrDefault("DDASH_AUTH_TOKEN", ""), "Org auth token (or DDASH_AUTH_TOKEN)")
+	secret := flag.String("secret", envOrDefault("DDASH_WEBHOOK_SECRET", ""), "Org webhook secret (or DDASH_WEBHOOK_SECRET)")
+	eventType := flag.String("type", "service.deployed", "Event type")
+	service := flag.String("service", "", "Service name")
+	environment := flag.String("environment", "", "Environment")
+	artifact := flag.String("artifact", "", "Artifact id (optional)")
+	source := flag.String("source", envOrDefault("DDASH_EVENT_SOURCE", "ci/pipeline"), "Event source")
+	timeout := flag.Duration("timeout", 10*time.Second, "Request timeout")
+	flag.Parse()
+
+	if strings.TrimSpace(*endpoint) == "" || strings.TrimSpace(*token) == "" || strings.TrimSpace(*secret) == "" {
+		exitErr("endpoint/token/secret are required (or set DDASH_ENDPOINT, DDASH_AUTH_TOKEN, DDASH_WEBHOOK_SECRET)")
+	}
+
+	client := eventpublisher.Client{
+		Endpoint: strings.TrimSpace(*endpoint),
+		Token:    strings.TrimSpace(*token),
+		Secret:   strings.TrimSpace(*secret),
+		Timeout:  *timeout,
+	}
+	resolvedType, err := client.Publish(context.Background(), eventpublisher.Event{
+		Type:        strings.TrimSpace(*eventType),
+		Source:      strings.TrimSpace(*source),
+		Service:     strings.TrimSpace(*service),
+		Environment: strings.TrimSpace(*environment),
+		Artifact:    strings.TrimSpace(*artifact),
+	})
+	if err != nil {
+		exitErr(err.Error())
+	}
+
+	fmt.Printf("Published %s for service=%s env=%s\n", resolvedType, strings.TrimSpace(*service), strings.TrimSpace(*environment))
+}
+
+func envOrDefault(key, fallback string) string {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+func exitErr(message string) {
+	fmt.Fprintln(os.Stderr, message)
+	os.Exit(1)
+}

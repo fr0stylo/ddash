@@ -53,6 +53,13 @@ func nullString(value string) sql.NullString {
 	return sql.NullString{String: value, Valid: true}
 }
 
+func nullInt64(value int64) sql.NullInt64 {
+	if value <= 0 {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: value, Valid: true}
+}
+
 // NewStore constructs a sqlite adapter around the existing database implementation.
 func NewStore(database storeDatabase) *Store {
 	return &Store{database: database}
@@ -72,6 +79,15 @@ func (s *Store) GetDefaultOrganization(ctx context.Context) (ports.Organization,
 // GetOrganizationByID returns organization by id.
 func (s *Store) GetOrganizationByID(ctx context.Context, id int64) (ports.Organization, error) {
 	org, err := s.database.GetOrganizationByID(ctx, id)
+	if err != nil {
+		return ports.Organization{}, err
+	}
+	return mapOrganization(org), nil
+}
+
+// GetOrganizationByJoinCode returns organization by join code.
+func (s *Store) GetOrganizationByJoinCode(ctx context.Context, joinCode string) (ports.Organization, error) {
+	org, err := s.database.GetOrganizationByJoinCode(ctx, nullString(joinCode))
 	if err != nil {
 		return ports.Organization{}, err
 	}
@@ -101,6 +117,7 @@ func (s *Store) CreateOrganization(ctx context.Context, params ports.CreateOrgan
 	org, err := s.database.CreateOrganization(ctx, queries.CreateOrganizationParams{
 		Name:          strings.TrimSpace(params.Name),
 		AuthToken:     strings.TrimSpace(params.AuthToken),
+		JoinCode:      nullString(params.JoinCode),
 		WebhookSecret: strings.TrimSpace(params.WebhookSecret),
 		Enabled:       enabled,
 	})
@@ -219,6 +236,56 @@ func (s *Store) ListOrganizationMembers(ctx context.Context, organizationID int6
 		})
 	}
 	return out, nil
+}
+
+// UpsertOrganizationJoinRequest creates or refreshes a pending join request.
+func (s *Store) UpsertOrganizationJoinRequest(ctx context.Context, organizationID, userID int64, requestCode string) error {
+	if organizationID <= 0 || userID <= 0 {
+		return nil
+	}
+	return s.database.UpsertOrganizationJoinRequest(ctx, queries.UpsertOrganizationJoinRequestParams{
+		OrganizationID: organizationID,
+		UserID:         userID,
+		RequestCode:    strings.TrimSpace(requestCode),
+	})
+}
+
+// ListPendingOrganizationJoinRequests returns pending join requests.
+func (s *Store) ListPendingOrganizationJoinRequests(ctx context.Context, organizationID int64) ([]ports.OrganizationJoinRequest, error) {
+	rows, err := s.database.ListPendingOrganizationJoinRequests(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ports.OrganizationJoinRequest, 0, len(rows))
+	for _, row := range rows {
+		name := ""
+		if row.Name.Valid {
+			name = row.Name.String
+		}
+		out = append(out, ports.OrganizationJoinRequest{
+			OrganizationID: row.OrganizationID,
+			UserID:         row.UserID,
+			RequestCode:    row.RequestCode,
+			Status:         row.Status,
+			Email:          row.Email,
+			Nickname:       row.Nickname,
+			Name:           name,
+		})
+	}
+	return out, nil
+}
+
+// SetOrganizationJoinRequestStatus updates join request status.
+func (s *Store) SetOrganizationJoinRequestStatus(ctx context.Context, organizationID, userID int64, status string, reviewedBy int64) error {
+	if organizationID <= 0 || userID <= 0 || reviewedBy <= 0 {
+		return nil
+	}
+	return s.database.SetOrganizationJoinRequestStatus(ctx, queries.SetOrganizationJoinRequestStatusParams{
+		Status:         strings.TrimSpace(status),
+		ReviewedBy:     nullInt64(reviewedBy),
+		OrganizationID: organizationID,
+		UserID:         userID,
+	})
 }
 
 // ListOrganizationRequiredFields returns configured required metadata fields.

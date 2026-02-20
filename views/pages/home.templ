@@ -7,7 +7,7 @@ import (
 
 templ HomePage(services []components.Service, metadataOptions []components.MetadataFilterOption, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, showMetadataFilters bool, enableSSELiveUpdates bool, defaultDashboardView string, statusSemanticsMode string, showOnboardingHints bool) {
 	@base.Doc("DDash - Home") {
-		@components.HomeHeader(components.DefaultStatusOptions(), showSyncStatus, showOnboardingHints)
+		@components.HomeHeader()
 
 		<main
 			class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"
@@ -102,11 +102,24 @@ templ HomePage(services []components.Service, metadataOptions []components.Metad
 			x-init="updateCounts()"
 			x-effect="updateCounts()"
 		>
-			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+			<div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div class="text-sm text-gray-500">
 					Showing <span id="service-count" class="font-medium text-gray-700" x-text="visible">0</span> of
 					<span id="service-total" class="font-medium text-gray-700" x-text="total">0</span> services
 				</div>
+				if showOnboardingHints {
+					<a class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/onboarding">Onboarding guide</a>
+				}
+			</div>
+
+			<div class="mb-4 flex flex-wrap items-center gap-2">
+				if showSyncStatus {
+					<select x-model="status" @change="updateCounts()" class="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
+						for _, option := range components.DefaultStatusOptions() {
+							<option value={ string(option.Value) }>{ option.Label }</option>
+						}
+					</select>
+				}
 				<div class="inline-flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 shadow-sm">
 					<button
 						data-view-button="grid"

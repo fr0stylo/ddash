@@ -1,0 +1,81 @@
+name: Release Binaries
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          mkdir -p dist
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          OUT="dist/ddash-${{ github.ref_name }}-${GOOS}-${GOARCH}${EXT}"
+          go build -ldflags "-s -w" -o "$OUT" ./cmd/server
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddash-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p upload
+          find dist -type f -name 'ddash-*' -exec cp {} upload/ \;
+          ls -lah upload
+
+      - name: Generate checksums
+        run: |
+          cd upload
+          sha256sum ddash-* > sha256sum.txt
+          cat sha256sum.txt
+
+      - name: Create GitHub release and upload binaries
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            upload/ddash-*
+            upload/sha256sum.txt
+          generate_release_notes: true

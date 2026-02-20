@@ -31,6 +31,7 @@ func getOrCreateDefaultOrganization(ctx context.Context, store ports.AppStore) (
 	created, err := store.CreateOrganization(ctx, ports.CreateOrganizationInput{
 		Name:          "default",
 		AuthToken:     authToken,
+		JoinCode:      "default-org",
 		WebhookSecret: secret,
 		Enabled:       true,
 	})

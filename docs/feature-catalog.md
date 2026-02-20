@@ -16,8 +16,17 @@ Use it as:
 - Validation pipeline:
   - bearer token organization lookup
   - HMAC SHA-256 signature check (`X-Webhook-Signature`)
-  - CDEvents schema validation
+  - CDEvents schema validation (SDK v0.5 parser/validator)
   - event type allowlist validation
+- Accepted delivery event types:
+  - `dev.cdevents.environment.created.0.3.0`
+  - `dev.cdevents.environment.modified.0.3.0`
+  - `dev.cdevents.environment.deleted.0.3.0`
+  - `dev.cdevents.service.deployed.0.3.0`
+  - `dev.cdevents.service.upgraded.0.3.0`
+  - `dev.cdevents.service.rolledback.0.3.0`
+  - `dev.cdevents.service.removed.0.3.0`
+  - `dev.cdevents.service.published.0.3.0`
 - Event persistence:
   - append-only `event_store`
   - idempotency on `(event_source, event_id)`

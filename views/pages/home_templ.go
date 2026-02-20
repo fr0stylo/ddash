@@ -46,57 +46,113 @@ func HomePage(services []components.Service, metadataOptions []components.Metada
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = components.HomeHeader(components.DefaultStatusOptions(), showSyncStatus, showOnboardingHints).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = components.HomeHeader().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <main class=\"mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8\" x-data=\"{\n\t\t\t\tquery: '',\n\t\t\t\tstatus: 'all',\n\t\t\t\tmetadata: 'all',\n\t\t\t\tmetadataTag: 'all',\n\t\t\t\ttotal: 0,\n\t\t\t\tvisible: 0,\n\t\t\t\tnormalize(value) { return value.trim().toLowerCase(); },\n\t\t\t\tparseQuery() {\n\t\t\t\t\tconst filters = { env: '', status: '', team: '', metadata: '' };\n\t\t\t\t\tconst terms = [];\n\t\t\t\t\tthis.query.split(' ').filter(Boolean).forEach((token) => {\n\t\t\t\t\t\tconst parts = token.split(':');\n\t\t\t\t\t\tif (parts.length >= 2) {\n\t\t\t\t\t\t\tconst key = this.normalize(parts[0]);\n\t\t\t\t\t\t\tconst value = this.normalize(parts.slice(1).join(':'));\n\t\t\t\t\t\t\tif (key === 'env' || key === 'environment') {\n\t\t\t\t\t\t\t\tfilters.env = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif (key === 'status') {\n\t\t\t\t\t\t\t\tfilters.status = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif (key === 'team') {\n\t\t\t\t\t\t\t\tfilters.team = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif (key === 'metadata') {\n\t\t\t\t\t\t\t\tfilters.metadata = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t\tterms.push(token);\n\t\t\t\t\t});\n\t\t\t\t\treturn { text: this.normalize(terms.join(' ')), filters };\n\t\t\t\t},\n\t\t\t\tmatches(name, environment, status, team, missingMetadata, metadataTags) {\n\t\t\t\t\tconst parsed = this.parseQuery();\n\t\t\t\t\tconst environmentValue = this.normalize(environment || '');\n\t\t\t\t\tconst nameValue = this.normalize(name || '');\n\t\t\t\t\tconst teamValue = this.normalize(team || '');\n\t\t\t\t\tconst missing = Number(missingMetadata || 0);\n\t\t\t\t\tconst tags = (metadataTags || '').toLowerCase();\n\t\t\t\t\tconst statusFilter = parsed.filters.status || this.status;\n\t\t\t\t\tconst metadataFilter = parsed.filters.metadata || this.metadata;\n\t\t\t\t\tconst statusMatch = statusFilter === 'all' || status === statusFilter;\n\t\t\t\t\tconst metadataMatch = metadataFilter === 'all'\n\t\t\t\t\t\t|| (metadataFilter === 'missing' && missing > 0)\n\t\t\t\t\t\t|| (metadataFilter === 'complete' && missing === 0);\n\t\t\t\t\tconst tagMatch = this.metadataTag === 'all' || tags.includes('|' + this.metadataTag.toLowerCase() + '|');\n\t\t\t\t\tconst envMatch = !parsed.filters.env || environmentValue.includes(parsed.filters.env);\n\t\t\t\t\tconst teamMatch = !parsed.filters.team || teamValue.includes(parsed.filters.team);\n\t\t\t\t\tconst textMatch = !parsed.text || nameValue.includes(parsed.text) || environmentValue.includes(parsed.text) || teamValue.includes(parsed.text);\n\t\t\t\t\treturn statusMatch && metadataMatch && tagMatch && envMatch && teamMatch && textMatch;\n\t\t\t\t},\n\t\t\t\tupdateCounts() {\n\t\t\t\t\tif (!this.$refs.cards) {\n\t\t\t\t\t\tthis.total = 0;\n\t\t\t\t\t\tthis.visible = 0;\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst cards = Array.from(this.$refs.cards.querySelectorAll('[data-service-card]'));\n\t\t\t\t\tconst rows = Array.from(this.$refs.cards.querySelectorAll('[data-service-row]'));\n\t\t\t\t\tconst items = cards.length > 0 ? cards : rows;\n\t\t\t\t\tthis.total = items.length;\n\t\t\t\t\tthis.visible = items.filter((item) => this.matches(item.dataset.name, item.dataset.environment, item.dataset.status, item.dataset.team, item.dataset.missingMetadata, item.dataset.metadata)).length;\n\t\t\t\t},\n\t\t\t\tcopyCommand(endpoint) {\n\t\t\t\t\tconst target = endpoint || '';\n\t\t\t\t\tconst command = target ? `curl -sSL ${target}` : '';\n\t\t\t\t\tif (!command) {\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tif (navigator.clipboard && navigator.clipboard.writeText) {\n\t\t\t\t\t\tnavigator.clipboard.writeText(command);\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst temp = document.createElement('textarea');\n\t\t\t\t\ttemp.value = command;\n\t\t\t\t\tdocument.body.appendChild(temp);\n\t\t\t\t\ttemp.select();\n\t\t\t\t\tdocument.execCommand('copy');\n\t\t\t\t\tdocument.body.removeChild(temp);\n\t\t\t\t},\n\t\t\t\tinit() {}\n\t\t\t}\" x-on:ddash-filter-metadata.window=\"metadata = $event.detail.mode || 'all'; updateCounts()\" x-init=\"updateCounts()\" x-effect=\"updateCounts()\"><div class=\"mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between\"><div class=\"text-sm text-gray-500\">Showing <span id=\"service-count\" class=\"font-medium text-gray-700\" x-text=\"visible\">0</span> of <span id=\"service-total\" class=\"font-medium text-gray-700\" x-text=\"total\">0</span> services</div><div class=\"inline-flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 shadow-sm\"><button data-view-button=\"grid\" hx-get=\"/services/grid\" hx-target=\"#service-results\" hx-swap=\"innerHTML\" hx-include=\"#service-view\" class=\"border-r border-gray-200 px-3 py-1.5 hover:bg-gray-100\">Grid</button> <button data-view-button=\"table\" hx-get=\"/services/table\" hx-target=\"#service-results\" hx-swap=\"innerHTML\" hx-include=\"#service-view\" class=\"px-3 py-1.5 hover:bg-gray-100\">Table</button></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <main class=\"mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8\" x-data=\"{\n\t\t\t\tquery: '',\n\t\t\t\tstatus: 'all',\n\t\t\t\tmetadata: 'all',\n\t\t\t\tmetadataTag: 'all',\n\t\t\t\ttotal: 0,\n\t\t\t\tvisible: 0,\n\t\t\t\tnormalize(value) { return value.trim().toLowerCase(); },\n\t\t\t\tparseQuery() {\n\t\t\t\t\tconst filters = { env: '', status: '', team: '', metadata: '' };\n\t\t\t\t\tconst terms = [];\n\t\t\t\t\tthis.query.split(' ').filter(Boolean).forEach((token) => {\n\t\t\t\t\t\tconst parts = token.split(':');\n\t\t\t\t\t\tif (parts.length >= 2) {\n\t\t\t\t\t\t\tconst key = this.normalize(parts[0]);\n\t\t\t\t\t\t\tconst value = this.normalize(parts.slice(1).join(':'));\n\t\t\t\t\t\t\tif (key === 'env' || key === 'environment') {\n\t\t\t\t\t\t\t\tfilters.env = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif (key === 'status') {\n\t\t\t\t\t\t\t\tfilters.status = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif (key === 'team') {\n\t\t\t\t\t\t\t\tfilters.team = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\tif (key === 'metadata') {\n\t\t\t\t\t\t\t\tfilters.metadata = value;\n\t\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t}\n\t\t\t\t\t\tterms.push(token);\n\t\t\t\t\t});\n\t\t\t\t\treturn { text: this.normalize(terms.join(' ')), filters };\n\t\t\t\t},\n\t\t\t\tmatches(name, environment, status, team, missingMetadata, metadataTags) {\n\t\t\t\t\tconst parsed = this.parseQuery();\n\t\t\t\t\tconst environmentValue = this.normalize(environment || '');\n\t\t\t\t\tconst nameValue = this.normalize(name || '');\n\t\t\t\t\tconst teamValue = this.normalize(team || '');\n\t\t\t\t\tconst missing = Number(missingMetadata || 0);\n\t\t\t\t\tconst tags = (metadataTags || '').toLowerCase();\n\t\t\t\t\tconst statusFilter = parsed.filters.status || this.status;\n\t\t\t\t\tconst metadataFilter = parsed.filters.metadata || this.metadata;\n\t\t\t\t\tconst statusMatch = statusFilter === 'all' || status === statusFilter;\n\t\t\t\t\tconst metadataMatch = metadataFilter === 'all'\n\t\t\t\t\t\t|| (metadataFilter === 'missing' && missing > 0)\n\t\t\t\t\t\t|| (metadataFilter === 'complete' && missing === 0);\n\t\t\t\t\tconst tagMatch = this.metadataTag === 'all' || tags.includes('|' + this.metadataTag.toLowerCase() + '|');\n\t\t\t\t\tconst envMatch = !parsed.filters.env || environmentValue.includes(parsed.filters.env);\n\t\t\t\t\tconst teamMatch = !parsed.filters.team || teamValue.includes(parsed.filters.team);\n\t\t\t\t\tconst textMatch = !parsed.text || nameValue.includes(parsed.text) || environmentValue.includes(parsed.text) || teamValue.includes(parsed.text);\n\t\t\t\t\treturn statusMatch && metadataMatch && tagMatch && envMatch && teamMatch && textMatch;\n\t\t\t\t},\n\t\t\t\tupdateCounts() {\n\t\t\t\t\tif (!this.$refs.cards) {\n\t\t\t\t\t\tthis.total = 0;\n\t\t\t\t\t\tthis.visible = 0;\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst cards = Array.from(this.$refs.cards.querySelectorAll('[data-service-card]'));\n\t\t\t\t\tconst rows = Array.from(this.$refs.cards.querySelectorAll('[data-service-row]'));\n\t\t\t\t\tconst items = cards.length > 0 ? cards : rows;\n\t\t\t\t\tthis.total = items.length;\n\t\t\t\t\tthis.visible = items.filter((item) => this.matches(item.dataset.name, item.dataset.environment, item.dataset.status, item.dataset.team, item.dataset.missingMetadata, item.dataset.metadata)).length;\n\t\t\t\t},\n\t\t\t\tcopyCommand(endpoint) {\n\t\t\t\t\tconst target = endpoint || '';\n\t\t\t\t\tconst command = target ? `curl -sSL ${target}` : '';\n\t\t\t\t\tif (!command) {\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tif (navigator.clipboard && navigator.clipboard.writeText) {\n\t\t\t\t\t\tnavigator.clipboard.writeText(command);\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst temp = document.createElement('textarea');\n\t\t\t\t\ttemp.value = command;\n\t\t\t\t\tdocument.body.appendChild(temp);\n\t\t\t\t\ttemp.select();\n\t\t\t\t\tdocument.execCommand('copy');\n\t\t\t\t\tdocument.body.removeChild(temp);\n\t\t\t\t},\n\t\t\t\tinit() {}\n\t\t\t}\" x-on:ddash-filter-metadata.window=\"metadata = $event.detail.mode || 'all'; updateCounts()\" x-init=\"updateCounts()\" x-effect=\"updateCounts()\"><div class=\"mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between\"><div class=\"text-sm text-gray-500\">Showing <span id=\"service-count\" class=\"font-medium text-gray-700\" x-text=\"visible\">0</span> of <span id=\"service-total\" class=\"font-medium text-gray-700\" x-text=\"total\">0</span> services</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if showMetadataFilters {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-sm\"><button type=\"button\" class=\"border-r border-gray-200 px-3 py-1.5 hover:bg-gray-50\" @click=\"metadata='all'; updateCounts()\">All metadata</button> <button type=\"button\" class=\"border-r border-gray-200 px-3 py-1.5 hover:bg-amber-50\" @click=\"metadata='missing'; updateCounts()\">Missing metadata</button> <button type=\"button\" class=\"px-3 py-1.5 hover:bg-emerald-50\" @click=\"metadata='complete'; updateCounts()\">Complete metadata</button></div><select x-model=\"metadataTag\" @change=\"updateCounts()\" class=\"h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
+			if showOnboardingHints {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a class=\"inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50\" href=\"/onboarding\">Onboarding guide</a>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				for _, option := range metadataOptions {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<option value=\"")
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div><div class=\"mb-4 flex flex-wrap items-center gap-2\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if showSyncStatus {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<select x-model=\"status\" @change=\"updateCounts()\" class=\"h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for _, option := range components.DefaultStatusOptions() {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<option value=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var3 string
-					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(option.Value)
+					templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(string(option.Value))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/home.templ`, Line: 140, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/home.templ`, Line: 119, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/home.templ`, Line: 140, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/home.templ`, Line: 119, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</option>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</option>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</select>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</select>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div class=\"mt-4\" x-ref=\"cards\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"inline-flex overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-600 shadow-sm\"><button data-view-button=\"grid\" hx-get=\"/services/grid\" hx-target=\"#service-results\" hx-swap=\"innerHTML\" hx-include=\"#service-view\" class=\"border-r border-gray-200 px-3 py-1.5 hover:bg-gray-100\">Grid</button> <button data-view-button=\"table\" hx-get=\"/services/table\" hx-target=\"#service-results\" hx-swap=\"innerHTML\" hx-include=\"#service-view\" class=\"px-3 py-1.5 hover:bg-gray-100\">Table</button></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if showMetadataFilters {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div class=\"inline-flex overflow-hidden rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-600 shadow-sm\"><button type=\"button\" class=\"border-r border-gray-200 px-3 py-1.5 hover:bg-gray-50\" @click=\"metadata='all'; updateCounts()\">All metadata</button> <button type=\"button\" class=\"border-r border-gray-200 px-3 py-1.5 hover:bg-amber-50\" @click=\"metadata='missing'; updateCounts()\">Missing metadata</button> <button type=\"button\" class=\"px-3 py-1.5 hover:bg-emerald-50\" @click=\"metadata='complete'; updateCounts()\">Complete metadata</button></div><select x-model=\"metadataTag\" @change=\"updateCounts()\" class=\"h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700 shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for _, option := range metadataOptions {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<option value=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var5 string
+					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(option.Value)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/home.templ`, Line: 153, Col: 35}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var6 string
+					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/home.templ`, Line: 153, Col: 52}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</option>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</select>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div><div class=\"mt-4\" x-ref=\"cards\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -111,7 +167,7 @@ func HomePage(services []components.Service, metadataOptions []components.Metada
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -119,7 +175,7 @@ func HomePage(services []components.Service, metadataOptions []components.Metada
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</main>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</main>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -149,22 +205,22 @@ func ServiceGridFragment(services []components.Service, showSyncStatus bool, sho
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var5 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var5 == nil {
-			templ_7745c5c3_Var5 = templ.NopComponent
+		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var7 == nil {
+			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div id=\"service-results\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div id=\"service-results\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if enableSSELiveUpdates {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, " hx-ext=\"sse\" sse-connect=\"/services/stream?view=grid\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, " hx-ext=\"sse\" sse-connect=\"/services/stream?view=grid\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "><input id=\"service-view\" type=\"hidden\" name=\"view\" value=\"grid\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "><input id=\"service-view\" type=\"hidden\" name=\"view\" value=\"grid\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -172,7 +228,7 @@ func ServiceGridFragment(services []components.Service, showSyncStatus bool, sho
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -196,22 +252,22 @@ func ServiceTableFragment(services []components.Service, showSyncStatus bool, sh
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var6 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var6 == nil {
-			templ_7745c5c3_Var6 = templ.NopComponent
+		templ_7745c5c3_Var8 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var8 == nil {
+			templ_7745c5c3_Var8 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div id=\"service-results\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<div id=\"service-results\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if enableSSELiveUpdates {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, " hx-ext=\"sse\" sse-connect=\"/services/stream?view=table\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, " hx-ext=\"sse\" sse-connect=\"/services/stream?view=table\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "><input id=\"service-view\" type=\"hidden\" name=\"view\" value=\"table\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "><input id=\"service-view\" type=\"hidden\" name=\"view\" value=\"table\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -219,7 +275,7 @@ func ServiceTableFragment(services []components.Service, showSyncStatus bool, sh
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

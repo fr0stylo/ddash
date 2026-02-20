@@ -21,6 +21,10 @@ func (f *metadataStoreFake) GetOrganizationByID(context.Context, int64) (ports.O
 	return ports.Organization{}, nil
 }
 
+func (f *metadataStoreFake) GetOrganizationByJoinCode(context.Context, string) (ports.Organization, error) {
+	return ports.Organization{}, nil
+}
+
 func (f *metadataStoreFake) ListOrganizations(context.Context) ([]ports.Organization, error) {
 	return nil, nil
 }
@@ -75,6 +79,18 @@ func (f *metadataStoreFake) CountOrganizationOwners(context.Context, int64) (int
 
 func (f *metadataStoreFake) ListOrganizationMembers(context.Context, int64) ([]ports.OrganizationMember, error) {
 	return nil, nil
+}
+
+func (f *metadataStoreFake) UpsertOrganizationJoinRequest(context.Context, int64, int64, string) error {
+	return nil
+}
+
+func (f *metadataStoreFake) ListPendingOrganizationJoinRequests(context.Context, int64) ([]ports.OrganizationJoinRequest, error) {
+	return nil, nil
+}
+
+func (f *metadataStoreFake) SetOrganizationJoinRequestStatus(context.Context, int64, int64, string, int64) error {
+	return nil
 }
 
 func (f *metadataStoreFake) ListOrganizationRequiredFields(context.Context, int64) ([]ports.RequiredField, error) {

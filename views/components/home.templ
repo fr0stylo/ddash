@@ -2,21 +2,8 @@ package components
 
 import "github.com/fr0stylo/ddash/views/base"
 
-templ HomeHeader(statusOptions []StatusOption, showSyncStatus bool, showOnboardingHints bool) {
-	@base.AppHeader("Services", "Track service deployments across environments.") {
-		if showOnboardingHints {
-			<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/onboarding">
-				Onboarding
-			</a>
-		}
-		if showSyncStatus {
-			<select id="service-status" name="status" class="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200">
-				for _, status := range statusOptions {
-					<option value={ string(status.Value) }>{ status.Label }</option>
-				}
-			</select>
-		}
-	}
+templ HomeHeader() {
+	@base.AppHeader("Services", "Track service deployments across environments.")
 }
 
 templ HomeFooter() {

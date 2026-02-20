@@ -26,6 +26,7 @@ func main() {
 	}
 
 	srv := server.New(log, publicFS)
+	isLocalEnv := isLocalDevelopmentEnv()
 
 	defaultDBPath := os.Getenv("DDASH_DB_PATH")
 	database, err := db.New(defaultDBPath)
@@ -41,7 +42,7 @@ func main() {
 
 	authSecret := os.Getenv("DDASH_SESSION_SECRET")
 	if authSecret == "" {
-		if isLocalDevelopmentEnv() {
+		if isLocalEnv {
 			authSecret = "ddash-local-dev"
 			slog.Warn("DDASH_SESSION_SECRET not set, using local development fallback")
 		} else {
@@ -65,7 +66,7 @@ func main() {
 
 	store := sqlite.NewStore(database)
 
-	srv.RegisterRouter(routes.NewAuthRoutes(store))
+	srv.RegisterRouter(routes.NewAuthRoutes(store, isLocalEnv))
 	srv.RegisterRouter(routes.NewViewRoutes(store, store))
 	srv.RegisterRouter(routes.NewWebhookRoutes(sqlite.NewSharedIngestionStoreFactory(database)))
 

@@ -8,7 +8,7 @@ import (
 templ OnboardingPage(showHints bool) {
 	@base.Doc("DDash - Onboarding") {
 		@base.AppHeader("Start onboarding", "Connect your deployment signals to DDash.") {
-			@components.BackLink("Back to services", "/")
+			@components.BackLink("Go to deployments", "/deployments")
 		}
 		<main class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
 			if !showHints {
@@ -34,6 +34,7 @@ templ OnboardingPage(showHints bool) {
 			<section class="mt-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
 				<h3 class="text-lg font-semibold text-gray-900">What DDash expects right now</h3>
 				<p class="mt-2 text-sm text-gray-600">Send signed HTTP POST requests to <span class="font-mono text-xs">/webhooks/cdevents</span> with bearer auth and one supported delivery event per request.</p>
+				<p class="mt-1 text-xs text-gray-500">Parses and validates via CDEvents SDK v0.5. Supported delivery event types currently use the v0.3.0 type suffix.</p>
 				<div class="mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-3 font-mono text-xs text-gray-700">
 					<div>Accepted event types:</div>
 					<div class="mt-2">- dev.cdevents.environment.created.0.3.0</div>
@@ -58,13 +59,77 @@ templ OnboardingPage(showHints bool) {
 						<div>3. Services/deployments UI is projected from stream.</div>
 					</div>
 				</div>
-				<div class="mt-4 rounded-lg border border-gray-200 bg-white p-3">
-					<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Quick test with curl</div>
-					<pre class="mt-2 overflow-x-auto rounded bg-gray-50 p-3 font-mono text-xs text-gray-700">curl -X POST https://ddash.maumevicius.cloud/webhooks/cdevents \
+				<div class="mt-5 grid gap-4 lg:grid-cols-2">
+					<div class="rounded-xl border border-gray-200 bg-white p-3">
+						<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">cURL</div>
+						<pre class="mt-2 overflow-x-auto rounded-lg bg-gray-900 p-3 font-mono text-[11px] leading-5 text-gray-100">curl -X POST https://ddash.example.com/webhooks/cdevents \
   -H "Authorization: Bearer &lt;auth-token&gt;" \
   -H "X-Webhook-Signature: &lt;hex-hmac-sha256-of-body&gt;" \
   -H "Content-Type: application/json" \
-  --data '&lt;cdevents-json-payload&gt;'</pre>
+  --data @event.json</pre>
+					</div>
+					<div class="rounded-xl border border-gray-200 bg-white p-3">
+						<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">JavaScript (Node.js fetch)</div>
+						<pre class="mt-2 overflow-x-auto rounded-lg bg-gray-900 p-3 font-mono text-[11px] leading-5 text-gray-100">import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+
+const body = await fs.readFile('./event.json', 'utf8');
+const signature = crypto.createHmac('sha256', process.env.WEBHOOK_SECRET)
+  .update(body)
+  .digest('hex');
+
+await fetch('https://ddash.example.com/webhooks/cdevents', &#123;
+  method: 'POST',
+  headers: &#123;
+    Authorization: 'Bearer ' + process.env.AUTH_TOKEN,
+    'X-Webhook-Signature': signature,
+    'Content-Type': 'application/json',
+  &#125;,
+  body,
+&#125;);</pre>
+					</div>
+					<div class="rounded-xl border border-gray-200 bg-white p-3">
+						<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Python (requests)</div>
+						<pre class="mt-2 overflow-x-auto rounded-lg bg-gray-900 p-3 font-mono text-[11px] leading-5 text-gray-100">import hashlib
+import hmac
+import os
+import requests
+
+body = open('event.json', 'rb').read()
+signature = hmac.new(
+    os.environ['WEBHOOK_SECRET'].encode(),
+    body,
+    hashlib.sha256,
+).hexdigest()
+
+requests.post(
+    'https://ddash.example.com/webhooks/cdevents',
+    headers=&#123;
+        'Authorization': 'Bearer ' + os.environ['AUTH_TOKEN'],
+        'X-Webhook-Signature': signature,
+        'Content-Type': 'application/json',
+    &#125;,
+    data=body,
+    timeout=10,
+)</pre>
+					</div>
+					<div class="rounded-xl border border-gray-200 bg-white p-3">
+						<div class="text-xs font-semibold uppercase tracking-wide text-gray-400">Go (net/http)</div>
+						<pre class="mt-2 overflow-x-auto rounded-lg bg-gray-900 p-3 font-mono text-[11px] leading-5 text-gray-100">body, _ := os.ReadFile("event.json")
+mac := hmac.New(sha256.New, []byte(os.Getenv("WEBHOOK_SECRET")))
+mac.Write(body)
+signature := hex.EncodeToString(mac.Sum(nil))
+
+req, _ := http.NewRequest(http.MethodPost,
+  "https://ddash.example.com/webhooks/cdevents",
+  bytes.NewReader(body),
+)
+req.Header.Set("Authorization", "Bearer "+os.Getenv("AUTH_TOKEN"))
+req.Header.Set("X-Webhook-Signature", signature)
+req.Header.Set("Content-Type", "application/json")
+
+_, _ = http.DefaultClient.Do(req)</pre>
+					</div>
 				</div>
 			</section>
 

@@ -8,18 +8,26 @@ import (
 )
 
 type fakeOrgStore struct {
-	orgs      []ports.Organization
-	updatedID int64
-	updatedOn bool
-	deletedID int64
+	orgs       []ports.Organization
+	updatedID  int64
+	updatedOn  bool
+	deletedID  int64
+	user       ports.User
+	created    []ports.CreateOrganizationInput
+	memberOrg  int64
+	memberUser int64
 }
 
 func (f *fakeOrgStore) GetDefaultOrganization(context.Context) (ports.Organization, error) {
 	return ports.Organization{}, nil
 }
 
-func (f *fakeOrgStore) CreateOrganization(context.Context, ports.CreateOrganizationInput) (ports.Organization, error) {
-	return ports.Organization{}, nil
+func (f *fakeOrgStore) CreateOrganization(_ context.Context, input ports.CreateOrganizationInput) (ports.Organization, error) {
+	f.created = append(f.created, input)
+	id := int64(100 + len(f.created))
+	org := ports.Organization{ID: id, Name: input.Name, Enabled: input.Enabled, AuthToken: input.AuthToken, WebhookSecret: input.WebhookSecret}
+	f.orgs = append(f.orgs, org)
+	return org, nil
 }
 
 func (f *fakeOrgStore) GetOrganizationByID(_ context.Context, id int64) (ports.Organization, error) {
@@ -28,6 +36,10 @@ func (f *fakeOrgStore) GetOrganizationByID(_ context.Context, id int64) (ports.O
 			return org, nil
 		}
 	}
+	return ports.Organization{}, nil
+}
+
+func (f *fakeOrgStore) GetOrganizationByJoinCode(context.Context, string) (ports.Organization, error) {
 	return ports.Organization{}, nil
 }
 
@@ -53,7 +65,7 @@ func (f *fakeOrgStore) UpsertUser(context.Context, ports.UpsertUserInput) (ports
 }
 
 func (f *fakeOrgStore) GetUserByID(context.Context, int64) (ports.User, error) {
-	return ports.User{}, nil
+	return f.user, nil
 }
 
 func (f *fakeOrgStore) GetUserByEmailOrNickname(context.Context, string, string) (ports.User, error) {
@@ -68,7 +80,9 @@ func (f *fakeOrgStore) GetOrganizationMemberRole(context.Context, int64, int64) 
 	return "owner", nil
 }
 
-func (f *fakeOrgStore) UpsertOrganizationMember(context.Context, int64, int64, string) error {
+func (f *fakeOrgStore) UpsertOrganizationMember(_ context.Context, organizationID int64, userID int64, _ string) error {
+	f.memberOrg = organizationID
+	f.memberUser = userID
 	return nil
 }
 
@@ -82,6 +96,18 @@ func (f *fakeOrgStore) CountOrganizationOwners(context.Context, int64) (int64, e
 
 func (f *fakeOrgStore) ListOrganizationMembers(context.Context, int64) ([]ports.OrganizationMember, error) {
 	return nil, nil
+}
+
+func (f *fakeOrgStore) UpsertOrganizationJoinRequest(context.Context, int64, int64, string) error {
+	return nil
+}
+
+func (f *fakeOrgStore) ListPendingOrganizationJoinRequests(context.Context, int64) ([]ports.OrganizationJoinRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeOrgStore) SetOrganizationJoinRequestStatus(context.Context, int64, int64, string, int64) error {
+	return nil
 }
 
 func (f *fakeOrgStore) ListOrganizationRequiredFields(context.Context, int64) ([]ports.RequiredField, error) {
@@ -143,5 +169,27 @@ func TestDeleteOrganizationSkipsLastOrganization(t *testing.T) {
 	}
 	if store.deletedID != 0 {
 		t.Fatalf("expected no delete call, got %d", store.deletedID)
+	}
+}
+
+func TestCreateInitialOrganizationForUserCreatesUserScopedDefault(t *testing.T) {
+	store := &fakeOrgStore{user: ports.User{ID: 7, Email: "alice@example.local", Nickname: "Alice QA"}}
+	svc := NewOrganizationManagementService(store)
+
+	org, err := svc.CreateInitialOrganizationForUser(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if org.ID == 0 {
+		t.Fatalf("expected created organization")
+	}
+	if len(store.created) != 1 {
+		t.Fatalf("expected one org creation, got %d", len(store.created))
+	}
+	if store.created[0].Name != "alice-qa-org" {
+		t.Fatalf("expected user-scoped org name, got %q", store.created[0].Name)
+	}
+	if store.memberOrg != org.ID || store.memberUser != 7 {
+		t.Fatalf("expected owner membership for created org %d user 7, got org=%d user=%d", org.ID, store.memberOrg, store.memberUser)
 	}
 }

@@ -16,8 +16,46 @@ This document lists current product capabilities and practical extension options
 - Validation pipeline:
   - bearer token authorization
   - HMAC signature check
-  - CDEvents schema validation
+  - CDEvents schema validation (SDK v0.5)
   - allowlist by event type
+
+#### Sending events (quick snippets)
+
+```bash
+curl -X POST https://ddash.example.com/webhooks/cdevents \
+  -H "Authorization: Bearer <auth-token>" \
+  -H "X-Webhook-Signature: <hex-hmac-sha256-of-body>" \
+  -H "Content-Type: application/json" \
+  --data @event.json
+```
+
+```javascript
+const body = await fs.readFile('./event.json', 'utf8')
+const signature = crypto.createHmac('sha256', process.env.WEBHOOK_SECRET).update(body).digest('hex')
+await fetch('https://ddash.example.com/webhooks/cdevents', {
+  method: 'POST',
+  headers: {
+    Authorization: 'Bearer ' + process.env.AUTH_TOKEN,
+    'X-Webhook-Signature': signature,
+    'Content-Type': 'application/json',
+  },
+  body,
+})
+```
+
+```python
+body = open('event.json', 'rb').read()
+signature = hmac.new(os.environ['WEBHOOK_SECRET'].encode(), body, hashlib.sha256).hexdigest()
+requests.post(
+    'https://ddash.example.com/webhooks/cdevents',
+    headers={
+        'Authorization': 'Bearer ' + os.environ['AUTH_TOKEN'],
+        'X-Webhook-Signature': signature,
+        'Content-Type': 'application/json',
+    },
+    data=body,
+)
+```
 
 ### Deployment visibility
 

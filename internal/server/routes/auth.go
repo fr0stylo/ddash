@@ -2,6 +2,7 @@ package routes
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/markbates/goth/providers/github"
 
 	"github.com/fr0stylo/ddash/internal/app/ports"
+	appservices "github.com/fr0stylo/ddash/internal/app/services"
 	"github.com/fr0stylo/ddash/views/pages"
 )
 
@@ -72,12 +74,13 @@ func ConfigureAuth(config AuthConfig) {
 
 // AuthRoutes registers authentication endpoints.
 type AuthRoutes struct {
-	store ports.AppStore
+	store          ports.AppStore
+	enableDevLogin bool
 }
 
 // NewAuthRoutes constructs auth routes.
-func NewAuthRoutes(store ports.AppStore) *AuthRoutes {
-	return &AuthRoutes{store: store}
+func NewAuthRoutes(store ports.AppStore, enableDevLogin bool) *AuthRoutes {
+	return &AuthRoutes{store: store, enableDevLogin: enableDevLogin}
 }
 
 // RegisterRoutes registers authentication routes on the server.
@@ -86,6 +89,10 @@ func (a *AuthRoutes) RegisterRoutes(s *echo.Echo) {
 	s.GET("/logout", a.handleLogout)
 	s.GET("/auth/:provider", a.handleAuthBegin)
 	s.GET("/auth/:provider/callback", a.handleAuthCallback)
+	if a.enableDevLogin {
+		s.GET("/auth/dev/login", a.handleDevLogin)
+		s.POST("/auth/dev/login", a.handleDevLogin)
+	}
 }
 
 // RequireAuth ensures a request has an authenticated user session.
@@ -193,11 +200,99 @@ func (a *AuthRoutes) handleAuthCallback(c echo.Context) error {
 		AvatarURL: user.AvatarURL,
 	}
 	session.Values[authSessionUserIDKey] = localUser.ID
-	delete(session.Values, authSessionActiveOrgIDKey)
+	orgService := appservices.NewOrganizationManagementService(a.store)
+	org, orgErr := orgService.GetActiveOrDefaultOrganizationForUser(request.Context(), localUser.ID, 0)
+	if orgErr == nil {
+		session.Values[authSessionActiveOrgIDKey] = org.ID
+	} else {
+		delete(session.Values, authSessionActiveOrgIDKey)
+	}
 	if err := session.Save(request, c.Response()); err != nil {
 		return err
 	}
+	if errors.Is(orgErr, appservices.ErrOrganizationMembershipRequired) {
+		return c.Redirect(http.StatusFound, "/welcome")
+	}
+	if orgErr != nil {
+		return orgErr
+	}
 	return c.Redirect(http.StatusFound, "/")
+}
+
+func (a *AuthRoutes) handleDevLogin(c echo.Context) error {
+	if !a.enableDevLogin {
+		return c.NoContent(http.StatusNotFound)
+	}
+
+	email := strings.TrimSpace(c.FormValue("email"))
+	if email == "" {
+		email = "dev-user@example.local"
+	}
+	nickname := strings.TrimSpace(c.FormValue("nickname"))
+	if nickname == "" {
+		nickname = strings.Split(email, "@")[0]
+	}
+	name := strings.TrimSpace(c.FormValue("name"))
+	if name == "" {
+		name = nickname
+	}
+	avatarURL := strings.TrimSpace(c.FormValue("avatar_url"))
+	githubID := strings.TrimSpace(c.FormValue("github_id"))
+	if githubID == "" {
+		githubID = "dev:" + nickname
+	}
+
+	localUser, err := a.store.UpsertUser(c.Request().Context(), ports.UpsertUserInput{
+		GitHubID:  githubID,
+		Email:     email,
+		Nickname:  nickname,
+		Name:      name,
+		AvatarURL: avatarURL,
+	})
+	if err != nil {
+		return err
+	}
+
+	orgService := appservices.NewOrganizationManagementService(a.store)
+	org, orgErr := orgService.GetActiveOrDefaultOrganizationForUser(c.Request().Context(), localUser.ID, 0)
+
+	session, err := gothic.Store.Get(c.Request(), authSessionName)
+	if err != nil {
+		if isInvalidSecureCookieError(err) {
+			clearSessionCookie(c, authSessionName)
+			clearSessionCookie(c, gothSessionName)
+			return c.Redirect(http.StatusFound, "/login")
+		}
+		return err
+	}
+	session.Values["user"] = AuthUser{
+		ID:        localUser.ID,
+		Name:      firstNonEmpty(localUser.Name, localUser.Nickname),
+		NickName:  localUser.Nickname,
+		Email:     localUser.Email,
+		AvatarURL: localUser.AvatarURL,
+	}
+	session.Values[authSessionUserIDKey] = localUser.ID
+	if orgErr == nil {
+		session.Values[authSessionActiveOrgIDKey] = org.ID
+	} else {
+		delete(session.Values, authSessionActiveOrgIDKey)
+	}
+	if err := session.Save(c.Request(), c.Response()); err != nil {
+		return err
+	}
+
+	next := strings.TrimSpace(c.FormValue("next"))
+	if next == "" || !strings.HasPrefix(next, "/") {
+		next = "/"
+	}
+	if errors.Is(orgErr, appservices.ErrOrganizationMembershipRequired) {
+		return c.Redirect(http.StatusFound, "/welcome")
+	}
+	if orgErr != nil {
+		return orgErr
+	}
+	return c.Redirect(http.StatusFound, next)
 }
 
 // GetAuthUserID returns authenticated local user id.

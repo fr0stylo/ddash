@@ -22,6 +22,10 @@ func (f *orgConfigStoreFake) GetOrganizationByID(context.Context, int64) (ports.
 	return f.org, nil
 }
 
+func (f *orgConfigStoreFake) GetOrganizationByJoinCode(context.Context, string) (ports.Organization, error) {
+	return ports.Organization{}, nil
+}
+
 func (f *orgConfigStoreFake) ListOrganizations(context.Context) ([]ports.Organization, error) {
 	return []ports.Organization{f.org}, nil
 }
@@ -76,6 +80,18 @@ func (f *orgConfigStoreFake) CountOrganizationOwners(context.Context, int64) (in
 
 func (f *orgConfigStoreFake) ListOrganizationMembers(context.Context, int64) ([]ports.OrganizationMember, error) {
 	return nil, nil
+}
+
+func (f *orgConfigStoreFake) UpsertOrganizationJoinRequest(context.Context, int64, int64, string) error {
+	return nil
+}
+
+func (f *orgConfigStoreFake) ListPendingOrganizationJoinRequests(context.Context, int64) ([]ports.OrganizationJoinRequest, error) {
+	return nil, nil
+}
+
+func (f *orgConfigStoreFake) SetOrganizationJoinRequestStatus(context.Context, int64, int64, string, int64) error {
+	return nil
 }
 
 func (f *orgConfigStoreFake) ListOrganizationRequiredFields(context.Context, int64) ([]ports.RequiredField, error) {

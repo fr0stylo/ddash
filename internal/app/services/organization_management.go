@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/fr0stylo/ddash/internal/app/ports"
@@ -17,6 +18,9 @@ var ErrOrganizationAccessDenied = errors.New("organization access denied")
 
 // ErrOrganizationAdminRequired is returned when admin-level organization role is required.
 var ErrOrganizationAdminRequired = errors.New("organization admin role required")
+
+// ErrOrganizationMembershipRequired is returned when user has no organization membership yet.
+var ErrOrganizationMembershipRequired = errors.New("organization membership required")
 
 // ErrCannotRemoveLastOwner is returned when membership change would remove the last owner.
 var ErrCannotRemoveLastOwner = errors.New("cannot remove last owner")
@@ -56,14 +60,61 @@ func (s *OrganizationManagementService) EnsureDefaultOrganizationForUser(ctx con
 			return org, nil
 		}
 	}
-	org, err := getOrCreateDefaultOrganization(ctx, s.store)
+	return ports.Organization{}, ErrOrganizationMembershipRequired
+}
+
+func (s *OrganizationManagementService) createInitialOrganizationForUser(ctx context.Context, userID int64, user ports.User) (ports.Organization, error) {
+	baseName := userScopedDefaultOrgName(user, userID)
+	for i := 0; i < 20; i++ {
+		name := baseName
+		if i > 0 {
+			name = fmt.Sprintf("%s-%d", baseName, i+1)
+		}
+
+		authToken, err := randomHexToken(16)
+		if err != nil {
+			return ports.Organization{}, err
+		}
+		secret, err := randomHexToken(24)
+		if err != nil {
+			return ports.Organization{}, err
+		}
+		joinCode, err := randomHexToken(6)
+		if err != nil {
+			return ports.Organization{}, err
+		}
+
+		org, err := s.store.CreateOrganization(ctx, ports.CreateOrganizationInput{
+			Name:          name,
+			AuthToken:     authToken,
+			JoinCode:      joinCode,
+			WebhookSecret: secret,
+			Enabled:       true,
+		})
+		if err != nil {
+			if isOrganizationNameConflict(err) {
+				continue
+			}
+			return ports.Organization{}, err
+		}
+		if err := s.store.UpsertOrganizationMember(ctx, org.ID, userID, memberRoleOwner); err != nil {
+			return ports.Organization{}, err
+		}
+		return org, nil
+	}
+	return ports.Organization{}, errors.New("failed to create unique organization for user")
+}
+
+// CreateInitialOrganizationForUser creates a first organization for a user with no memberships.
+func (s *OrganizationManagementService) CreateInitialOrganizationForUser(ctx context.Context, userID int64) (ports.Organization, error) {
+	if userID <= 0 {
+		return ports.Organization{}, ErrOrganizationAccessDenied
+	}
+	user, err := s.store.GetUserByID(ctx, userID)
 	if err != nil {
 		return ports.Organization{}, err
 	}
-	if err := s.store.UpsertOrganizationMember(ctx, org.ID, userID, memberRoleOwner); err != nil {
-		return ports.Organization{}, err
-	}
-	return org, nil
+	return s.createInitialOrganizationForUser(ctx, userID, user)
 }
 
 // GetOrganizationByID returns one organization.
@@ -125,7 +176,7 @@ func (s *OrganizationManagementService) GetActiveOrDefaultOrganizationForUser(ct
 			return org, nil
 		}
 	}
-	return s.EnsureDefaultOrganizationForUser(ctx, userID)
+	return ports.Organization{}, ErrOrganizationMembershipRequired
 }
 
 // ListOrganizations returns all organizations.
@@ -155,9 +206,14 @@ func (s *OrganizationManagementService) CreateOrganization(ctx context.Context, 
 	if err != nil {
 		return ports.Organization{}, err
 	}
+	joinCode, err := randomHexToken(6)
+	if err != nil {
+		return ports.Organization{}, err
+	}
 	org, err := s.store.CreateOrganization(ctx, ports.CreateOrganizationInput{
 		Name:          name,
 		AuthToken:     authToken,
+		JoinCode:      joinCode,
 		WebhookSecret: secret,
 		Enabled:       true,
 	})
@@ -191,6 +247,53 @@ func (s *OrganizationManagementService) CanManageOrganization(ctx context.Contex
 // ListMembers returns organization members.
 func (s *OrganizationManagementService) ListMembers(ctx context.Context, organizationID int64) ([]ports.OrganizationMember, error) {
 	return s.store.ListOrganizationMembers(ctx, organizationID)
+}
+
+// RequestJoinByCode submits a pending join request using organization join code.
+func (s *OrganizationManagementService) RequestJoinByCode(ctx context.Context, userID int64, joinCode string) error {
+	if userID <= 0 {
+		return ErrOrganizationAccessDenied
+	}
+	joinCode = strings.TrimSpace(joinCode)
+	if joinCode == "" {
+		return ErrOrganizationAccessDenied
+	}
+	org, err := s.store.GetOrganizationByJoinCode(ctx, joinCode)
+	if err != nil {
+		return err
+	}
+	requestCode, err := randomHexToken(5)
+	if err != nil {
+		return err
+	}
+	return s.store.UpsertOrganizationJoinRequest(ctx, org.ID, userID, requestCode)
+}
+
+// ListPendingJoinRequests returns pending join requests for one organization.
+func (s *OrganizationManagementService) ListPendingJoinRequests(ctx context.Context, organizationID int64) ([]ports.OrganizationJoinRequest, error) {
+	if organizationID <= 0 {
+		return nil, nil
+	}
+	return s.store.ListPendingOrganizationJoinRequests(ctx, organizationID)
+}
+
+// ApproveJoinRequest approves a join request and grants member role.
+func (s *OrganizationManagementService) ApproveJoinRequest(ctx context.Context, organizationID, userID, reviewedBy int64) error {
+	if organizationID <= 0 || userID <= 0 || reviewedBy <= 0 {
+		return ErrOrganizationAccessDenied
+	}
+	if err := s.store.UpsertOrganizationMember(ctx, organizationID, userID, memberRoleMember); err != nil {
+		return err
+	}
+	return s.store.SetOrganizationJoinRequestStatus(ctx, organizationID, userID, "approved", reviewedBy)
+}
+
+// RejectJoinRequest rejects a pending join request.
+func (s *OrganizationManagementService) RejectJoinRequest(ctx context.Context, organizationID, userID, reviewedBy int64) error {
+	if organizationID <= 0 || userID <= 0 || reviewedBy <= 0 {
+		return ErrOrganizationAccessDenied
+	}
+	return s.store.SetOrganizationJoinRequestStatus(ctx, organizationID, userID, "rejected", reviewedBy)
 }
 
 // AddMemberByLookup adds membership by existing user identity.
@@ -317,4 +420,49 @@ func normalizeRole(role string) string {
 	default:
 		return ""
 	}
+}
+
+func userScopedDefaultOrgName(user ports.User, userID int64) string {
+	base := strings.TrimSpace(user.Nickname)
+	if base == "" {
+		emailParts := strings.Split(strings.TrimSpace(user.Email), "@")
+		if len(emailParts) > 0 {
+			base = emailParts[0]
+		}
+	}
+	if base == "" {
+		base = strings.TrimSpace(user.Name)
+	}
+	if base == "" {
+		base = fmt.Sprintf("user-%d", userID)
+	}
+
+	builder := strings.Builder{}
+	prevDash := false
+	for _, r := range strings.ToLower(base) {
+		isLetter := r >= 'a' && r <= 'z'
+		isDigit := r >= '0' && r <= '9'
+		if isLetter || isDigit {
+			builder.WriteRune(r)
+			prevDash = false
+			continue
+		}
+		if !prevDash {
+			builder.WriteRune('-')
+			prevDash = true
+		}
+	}
+	clean := strings.Trim(builder.String(), "-")
+	if clean == "" {
+		clean = fmt.Sprintf("user-%d", userID)
+	}
+	return clean + "-org"
+}
+
+func isOrganizationNameConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unique") && strings.Contains(msg, "organizations.name")
 }

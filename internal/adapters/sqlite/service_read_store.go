@@ -169,10 +169,15 @@ func (s *Store) ListDiscoveredEnvironments(ctx context.Context, organizationID i
 }
 
 func mapOrganization(org queries.Organization) ports.Organization {
+	joinCode := ""
+	if org.JoinCode.Valid {
+		joinCode = org.JoinCode.String
+	}
 	return ports.Organization{
 		ID:            org.ID,
 		Name:          org.Name,
 		AuthToken:     org.AuthToken,
+		JoinCode:      joinCode,
 		WebhookSecret: org.WebhookSecret,
 		Enabled:       org.Enabled != 0,
 	}

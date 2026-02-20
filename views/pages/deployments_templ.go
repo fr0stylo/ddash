@@ -83,7 +83,7 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <main class=\"mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"{ metadataTag: 'all', matchesMetadata(tags) { const value = (tags || '').toLowerCase(); return this.metadataTag === 'all' || value.includes('|' + this.metadataTag.toLowerCase() + '|'); } }\"><div class=\"mb-4 flex flex-wrap gap-3\"><select id=\"deployment-service\" name=\"service\" hx-get=\"/deployments/filter\" hx-target=\"#deployment-results\" hx-swap=\"outerHTML\" hx-trigger=\"change\" class=\"h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <main class=\"mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"{ metadataTag: 'all', matchesMetadata(tags) { const value = (tags || '').toLowerCase(); return this.metadataTag === 'all' || value.includes('|' + this.metadataTag.toLowerCase() + '|'); } }\"><form id=\"deployment-filters\" class=\"mb-4 flex flex-wrap gap-3\" hx-get=\"/deployments/filter\" hx-target=\"#deployment-results\" hx-swap=\"outerHTML\" hx-trigger=\"change delay:50ms\"><input type=\"hidden\" name=\"env\" value=\"all\"> <select id=\"deployment-service\" name=\"service\" class=\"h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -95,7 +95,7 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(service)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 56, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 53, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -108,7 +108,7 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(service)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 56, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 53, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -136,7 +136,7 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(option.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 62, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 59, Col: 35}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -149,7 +149,7 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 62, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 59, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -165,7 +165,7 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -220,7 +220,7 @@ func DeploymentResults(deployments []components.DeploymentRow, env string, servi
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(deploymentStreamURL(env, service))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 73, Col: 177}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 70, Col: 177}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -259,7 +259,7 @@ func DeploymentResults(deployments []components.DeploymentRow, env string, servi
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(deploymentEmptyColspan(showSyncStatus, showEnvironmentColumn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 95, Col: 133}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 92, Col: 133}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

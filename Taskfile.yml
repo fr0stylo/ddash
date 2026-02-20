@@ -3,6 +3,8 @@ version: '3'
 tasks:
   server:
     desc: Run the HTTP server
+    deps:
+      - generate
     cmds:
       - go run ./cmd/server
 
@@ -33,6 +35,19 @@ tasks:
     vars:
       DB: data/default
       SEED_FILE: internal/db/seeds/sample_services_event_store.sql
+
+  events:publish:
+    desc: Publish one CDEvents delivery event to DDash
+    cmds:
+      - go run ./cmd/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: service.deployed
+      SERVICE: billing-api
+      ENV: staging
+      FLAGS: ""
 
   remote:install-systemd:
     desc: Install DDash as a systemd service on remote host
@@ -70,6 +85,11 @@ tasks:
     cmds:
       - go tool sqlc generate
 
+  mocks:
+    desc: Regenerate test mocks via mockery
+    cmds:
+      - go tool github.com/vektra/mockery/v3
+
   fmt:
     desc: Format Go code
     cmds:
@@ -99,6 +119,7 @@ tasks:
     desc: Run all code generation tasks
     deps:
       - sqlc
+      - mocks
     cmds:
       - templ generate
       - npx @tailwindcss/cli -i ./assets/styles.css -o ./public/styles.css

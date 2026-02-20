@@ -10,6 +10,7 @@ import (
 type AppStore interface {
 	GetDefaultOrganization(ctx context.Context) (Organization, error)
 	GetOrganizationByID(ctx context.Context, id int64) (Organization, error)
+	GetOrganizationByJoinCode(ctx context.Context, joinCode string) (Organization, error)
 	ListOrganizations(ctx context.Context) ([]Organization, error)
 	CreateOrganization(ctx context.Context, params CreateOrganizationInput) (Organization, error)
 	UpdateOrganizationName(ctx context.Context, organizationID int64, name string) error
@@ -25,6 +26,9 @@ type AppStore interface {
 	DeleteOrganizationMember(ctx context.Context, organizationID, userID int64) error
 	CountOrganizationOwners(ctx context.Context, organizationID int64) (int64, error)
 	ListOrganizationMembers(ctx context.Context, organizationID int64) ([]OrganizationMember, error)
+	UpsertOrganizationJoinRequest(ctx context.Context, organizationID, userID int64, requestCode string) error
+	ListPendingOrganizationJoinRequests(ctx context.Context, organizationID int64) ([]OrganizationJoinRequest, error)
+	SetOrganizationJoinRequestStatus(ctx context.Context, organizationID, userID int64, status string, reviewedBy int64) error
 
 	ListOrganizationRequiredFields(ctx context.Context, organizationID int64) ([]RequiredField, error)
 	ListOrganizationEnvironmentPriorities(ctx context.Context, organizationID int64) ([]string, error)
@@ -40,8 +44,20 @@ type AppStore interface {
 type CreateOrganizationInput struct {
 	Name          string
 	AuthToken     string
+	JoinCode      string
 	WebhookSecret string
 	Enabled       bool
+}
+
+// OrganizationJoinRequest is one pending/processed join request for an organization.
+type OrganizationJoinRequest struct {
+	OrganizationID int64
+	UserID         int64
+	RequestCode    string
+	Status         string
+	Email          string
+	Nickname       string
+	Name           string
 }
 
 // OrganizationSettingsUpdate contains values persisted from settings page.
