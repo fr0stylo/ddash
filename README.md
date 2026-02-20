@@ -76,6 +76,10 @@ Library usage is available via `pkg/eventpublisher` for custom tooling.
   - triggers on tags matching `v*`
   - builds `cmd/server` binaries for linux/darwin/windows
   - creates GitHub release and uploads binaries
+- E2E workflow: `.github/workflows/e2e-playwright.yml`
+  - starts local DDash in dev mode
+  - seeds deterministic org/user data and publishes sample events
+  - runs Playwright smoke tests (`tests/e2e/smoke.spec.js`)
 
 ## Notes
 

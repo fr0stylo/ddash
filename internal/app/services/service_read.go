@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fr0stylo/ddash/internal/app/domain"
 	"github.com/fr0stylo/ddash/internal/app/ports"
@@ -82,7 +84,7 @@ func (s *ServiceReadService) GetServiceDetail(ctx context.Context, organizationI
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
-	historyRows, err := s.store.ListDeploymentHistory(ctx, organizationID, name, 10)
+	historyRows, err := s.store.ListDeploymentHistory(ctx, organizationID, name, 200)
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
@@ -96,6 +98,8 @@ func (s *ServiceReadService) GetServiceDetail(ctx context.Context, organizationI
 	}
 
 	applyEnvironmentPriorityOrder(serviceEnvs, envPriorities)
+	enrichReleaseChangeLogs(historyRows)
+	enrichEnvironmentDeploymentStats(serviceEnvs, historyRows)
 
 	return domain.ServiceDetail{
 		Title:             service.Name,
@@ -108,6 +112,84 @@ func (s *ServiceReadService) GetServiceDetail(ctx context.Context, organizationI
 		Environments:      serviceEnvs,
 		DeploymentHistory: historyRows,
 	}, nil
+}
+
+func enrichReleaseChangeLogs(rows []domain.DeploymentRecord) {
+	byEnv := map[string][]int{}
+	for i, row := range rows {
+		env := strings.ToLower(strings.TrimSpace(row.Environment))
+		byEnv[env] = append(byEnv[env], i)
+	}
+	for _, indexes := range byEnv {
+		for i, idx := range indexes {
+			current := strings.TrimSpace(rows[idx].Ref)
+			if i+1 >= len(indexes) {
+				rows[idx].PreviousRef = ""
+				if current == "" {
+					rows[idx].ChangeLog = "Initial deployment"
+				} else {
+					rows[idx].ChangeLog = "Initial release in this environment"
+				}
+				continue
+			}
+			prev := strings.TrimSpace(rows[indexes[i+1]].Ref)
+			rows[idx].PreviousRef = prev
+			switch {
+			case current == "" && prev == "":
+				rows[idx].ChangeLog = "Release reference unavailable"
+			case current == prev:
+				rows[idx].ChangeLog = "No code reference change"
+			case prev == "":
+				rows[idx].ChangeLog = "Reference started tracking"
+			default:
+				rows[idx].ChangeLog = "Updated from previous release"
+			}
+		}
+	}
+}
+
+func enrichEnvironmentDeploymentStats(environments []domain.ServiceEnvironment, history []domain.DeploymentRecord) {
+	now := time.Now()
+	type counts struct{ c7, c30 int }
+	byEnv := map[string]counts{}
+	for _, row := range history {
+		env := strings.ToLower(strings.TrimSpace(row.Environment))
+		if env == "" {
+			continue
+		}
+		parsed, err := time.ParseInLocation("2006-01-02 15:04", strings.TrimSpace(row.DeployedAt), time.Local)
+		if err != nil {
+			continue
+		}
+		delta := now.Sub(parsed)
+		item := byEnv[env]
+		if delta <= 7*24*time.Hour {
+			item.c7++
+		}
+		if delta <= 30*24*time.Hour {
+			item.c30++
+		}
+		byEnv[env] = item
+	}
+	for i := range environments {
+		env := strings.ToLower(strings.TrimSpace(environments[i].Name))
+		item := byEnv[env]
+		environments[i].DeployCount7d = item.c7
+		environments[i].DeployCount30d = item.c30
+		environments[i].DailyRate30d = formatDailyRate(item.c30)
+	}
+}
+
+func formatDailyRate(count30 int) string {
+	if count30 <= 0 {
+		return "0/day"
+	}
+	rate := float64(count30) / 30.0
+	return strings.TrimRight(strings.TrimRight(fmtFloat(rate), "0"), ".") + "/day"
+}
+
+func fmtFloat(value float64) string {
+	return strconv.FormatFloat(value, 'f', 2, 64)
 }
 
 type metadataFilterData struct {

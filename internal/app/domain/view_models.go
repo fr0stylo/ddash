@@ -69,17 +69,24 @@ type DeploymentRow struct {
 
 // ServiceEnvironment is one environment row in service details.
 type ServiceEnvironment struct {
-	Name       string
-	LastDeploy string
-	Ref        string
+	Name            string
+	LastDeploy      string
+	LastDeployedAgo string
+	Ref             string
+	DeployCount7d   int
+	DeployCount30d  int
+	DailyRate30d    string
 }
 
 // DeploymentRecord is one deployment history item.
 type DeploymentRecord struct {
 	Ref         string
+	PreviousRef string
+	ChangeLog   string
 	Commits     int
 	DeployedAt  string
 	Environment string
+	DeployedAgo string
 }
 
 // ServiceDetail is composed service details page view model.

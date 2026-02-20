@@ -1,0 +1,12 @@
+{
+  "name": "ddash-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Playwright smoke tests for DDash",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0"
+  }
+}

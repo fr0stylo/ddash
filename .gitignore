@@ -9,3 +9,6 @@ tmp/
 bin/
 .serena/
 scripts/
+node_modules/
+playwright-report/
+test-results/

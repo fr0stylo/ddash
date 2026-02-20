@@ -56,10 +56,14 @@ type ServiceField struct {
 }
 
 type ServiceEnvironment struct {
-	Name        string
-	LastDeploy  string
-	DeployedRef string
-	CommitURL   string
+	Name            string
+	LastDeploy      string
+	LastDeployedAgo string
+	DeployedRef     string
+	CommitURL       string
+	DeployCount7d   int
+	DeployCount30d  int
+	DailyRate30d    string
 }
 
 type GitCommit struct {
@@ -70,8 +74,11 @@ type GitCommit struct {
 
 type DeploymentRecord struct {
 	Ref         string
+	PreviousRef string
+	ChangeLog   string
 	Commits     int
 	DeployedAt  string
+	DeployedAgo string
 	ReleaseURL  string
 	Environment string
 }

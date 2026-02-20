@@ -52,9 +52,13 @@ func mapDomainServiceDetail(detail domain.ServiceDetail) components.ServiceDetai
 	envs := make([]components.ServiceEnvironment, 0, len(detail.Environments))
 	for _, env := range detail.Environments {
 		envs = append(envs, components.ServiceEnvironment{
-			Name:        env.Name,
-			LastDeploy:  env.LastDeploy,
-			DeployedRef: env.Ref,
+			Name:            env.Name,
+			LastDeploy:      env.LastDeploy,
+			LastDeployedAgo: env.LastDeployedAgo,
+			DeployedRef:     env.Ref,
+			DeployCount7d:   env.DeployCount7d,
+			DeployCount30d:  env.DeployCount30d,
+			DailyRate30d:    env.DailyRate30d,
 		})
 	}
 
@@ -62,8 +66,11 @@ func mapDomainServiceDetail(detail domain.ServiceDetail) components.ServiceDetai
 	for _, row := range detail.DeploymentHistory {
 		history = append(history, components.DeploymentRecord{
 			Ref:         row.Ref,
+			PreviousRef: row.PreviousRef,
+			ChangeLog:   row.ChangeLog,
 			Commits:     row.Commits,
 			DeployedAt:  row.DeployedAt,
+			DeployedAgo: row.DeployedAgo,
 			Environment: row.Environment,
 		})
 	}

@@ -11,7 +11,9 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/fr0stylo/ddash/views/base"
 	"github.com/fr0stylo/ddash/views/components"
@@ -44,6 +46,69 @@ func deploymentStreamURL(env string, service string) string {
 		return "/deployments/stream"
 	}
 	return "/deployments/stream?" + query
+}
+
+type deploymentEnvironmentStat struct {
+	Name      string
+	Count7d   int
+	Count30d  int
+	DailyRate string
+	BarWidth  string
+}
+
+func deploymentEnvironmentStats(rows []components.DeploymentRow) []deploymentEnvironmentStat {
+	now := time.Now()
+	type counts struct{ c7, c30 int }
+	byEnv := map[string]counts{}
+	max30 := 0
+	for _, row := range rows {
+		env := strings.TrimSpace(row.Environment)
+		if env == "" {
+			env = "unknown"
+		}
+		parsed, err := time.ParseInLocation("2006-01-02 15:04", strings.TrimSpace(row.DeployedAt), time.Local)
+		if err != nil {
+			continue
+		}
+		delta := now.Sub(parsed)
+		item := byEnv[env]
+		if delta <= 7*24*time.Hour {
+			item.c7++
+		}
+		if delta <= 30*24*time.Hour {
+			item.c30++
+		}
+		if item.c30 > max30 {
+			max30 = item.c30
+		}
+		byEnv[env] = item
+	}
+	stats := make([]deploymentEnvironmentStat, 0, len(byEnv))
+	for env, item := range byEnv {
+		width := 8
+		if max30 > 0 {
+			width = int(float64(item.c30) / float64(max30) * 100)
+			if width < 8 {
+				width = 8
+			}
+		}
+		stats = append(stats, deploymentEnvironmentStat{
+			Name:      env,
+			Count7d:   item.c7,
+			Count30d:  item.c30,
+			DailyRate: deploymentDailyRate(item.c30),
+			BarWidth:  fmt.Sprintf("%d%%", width),
+		})
+	}
+	sort.Slice(stats, func(i, j int) bool { return stats[i].Name < stats[j].Name })
+	return stats
+}
+
+func deploymentDailyRate(count30 int) string {
+	if count30 <= 0 {
+		return "0/day"
+	}
+	return fmt.Sprintf("%.2f/day", float64(count30)/30.0)
 }
 
 func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []components.MetadataFilterOption, showSyncStatus bool, showEnvironmentColumn bool, showMetadataFilters bool, enableSSELiveUpdates bool, statusSemanticsMode string) templ.Component {
@@ -83,89 +148,164 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <main class=\"mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"{ metadataTag: 'all', matchesMetadata(tags) { const value = (tags || '').toLowerCase(); return this.metadataTag === 'all' || value.includes('|' + this.metadataTag.toLowerCase() + '|'); } }\"><form id=\"deployment-filters\" class=\"mb-4 flex flex-wrap gap-3\" hx-get=\"/deployments/filter\" hx-target=\"#deployment-results\" hx-swap=\"outerHTML\" hx-trigger=\"change delay:50ms\"><input type=\"hidden\" name=\"env\" value=\"all\"> <select id=\"deployment-service\" name=\"service\" class=\"h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, " <main class=\"mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8\" x-data=\"{ metadataTag: 'all', matchesMetadata(tags) { const value = (tags || '').toLowerCase(); return this.metadataTag === 'all' || value.includes('|' + this.metadataTag.toLowerCase() + '|'); } }\"><div class=\"mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			for _, service := range deploymentServices(deployments) {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<option value=\"")
+			for _, stat := range deploymentEnvironmentStats(deployments) {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 shadow-sm\"><div class=\"font-semibold text-gray-800\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var3 string
-				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(service)
+				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(stat.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 53, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 113, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div><div class=\"mt-1\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var4 string
-				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(service)
+				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(stat.Count7d))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 53, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 114, Col: 50}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</option>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, " deploys / 7d</div><div>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var5 string
+				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(stat.Count30d))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 115, Col: 38}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " deploys / 30d · ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var6 string
+				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(stat.DailyRate)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 115, Col: 74}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "</div><div class=\"mt-2 h-1.5 rounded bg-gray-100\"><div class=\"h-1.5 rounded bg-gray-700\" style=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var7 string
+				templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("width:" + stat.BarWidth)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 117, Col: 78}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"></div></div></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</select> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</div><form id=\"deployment-filters\" class=\"mb-4 flex flex-wrap gap-3\" hx-get=\"/deployments/filter\" hx-target=\"#deployment-results\" hx-swap=\"outerHTML\" hx-trigger=\"change delay:50ms\"><input type=\"hidden\" name=\"env\" value=\"all\"> <select id=\"deployment-service\" name=\"service\" class=\"h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			for _, service := range deploymentServices(deployments) {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<option value=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var8 string
+				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(service)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 130, Col: 29}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var9 string
+				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(service)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 130, Col: 41}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</option>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</select> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if showMetadataFilters {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<select x-model=\"metadataTag\" class=\"h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<select x-model=\"metadataTag\" class=\"h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				for _, option := range metadataOptions {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<option value=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<option value=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(option.Value)
+					var templ_7745c5c3_Var10 string
+					templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(option.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 59, Col: 35}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 136, Col: 35}
 					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\">")
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					var templ_7745c5c3_Var6 string
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 59, Col: 52}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</option>")
+					var templ_7745c5c3_Var11 string
+					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 136, Col: 52}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</option>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</select>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</select>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</form>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -173,7 +313,7 @@ func DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []c
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</main>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</main>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -203,69 +343,69 @@ func DeploymentResults(deployments []components.DeploymentRow, env string, servi
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var7 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var7 == nil {
-			templ_7745c5c3_Var7 = templ.NopComponent
+		templ_7745c5c3_Var12 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var12 == nil {
+			templ_7745c5c3_Var12 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<div id=\"deployment-results\" class=\"rounded-xl border border-gray-200 bg-white shadow-sm\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<div id=\"deployment-results\" class=\"rounded-xl border border-gray-200 bg-white shadow-sm\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if enableSSELiveUpdates {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, " hx-ext=\"sse\" sse-connect=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, " hx-ext=\"sse\" sse-connect=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(deploymentStreamURL(env, service))
+			var templ_7745c5c3_Var13 string
+			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(deploymentStreamURL(env, service))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 70, Col: 177}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 147, Col: 177}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "><table class=\"min-w-full divide-y divide-gray-200 text-sm\"><thead class=\"bg-gray-50 text-xs uppercase tracking-wide text-gray-500\"><tr><th class=\"px-4 py-3 text-left font-medium\">Date</th><th class=\"px-4 py-3 text-left font-medium\">Service</th>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "><table class=\"min-w-full divide-y divide-gray-200 text-sm\"><thead class=\"bg-gray-50 text-xs uppercase tracking-wide text-gray-500\"><tr><th class=\"px-4 py-3 text-left font-medium\">Date</th><th class=\"px-4 py-3 text-left font-medium\">Service</th>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if showEnvironmentColumn {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<th class=\"px-4 py-3 text-left font-medium\">Environment</th>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<th class=\"px-4 py-3 text-left font-medium\">Environment</th>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if showSyncStatus {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<th class=\"px-4 py-3 text-left font-medium\">Status</th>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "<th class=\"px-4 py-3 text-left font-medium\">Status</th>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</tr></thead> <tbody id=\"deployment-rows\" class=\"divide-y divide-gray-100\" sse-swap=\"deployment-new\" hx-swap=\"afterbegin\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</tr></thead> <tbody id=\"deployment-rows\" class=\"divide-y divide-gray-100\" sse-swap=\"deployment-new\" hx-swap=\"afterbegin\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if len(deployments) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<tr><td class=\"px-4 py-6 text-center text-sm text-gray-500\" colspan=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<tr><td class=\"px-4 py-6 text-center text-sm text-gray-500\" colspan=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(deploymentEmptyColspan(showSyncStatus, showEnvironmentColumn))
+			var templ_7745c5c3_Var14 string
+			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(deploymentEmptyColspan(showSyncStatus, showEnvironmentColumn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 92, Col: 133}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `views/pages/deployments.templ`, Line: 169, Col: 133}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\">No deployments yet.</td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\">No deployments yet.</td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -276,7 +416,7 @@ func DeploymentResults(deployments []components.DeploymentRow, env string, servi
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</tbody></table></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</tbody></table></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

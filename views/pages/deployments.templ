@@ -3,7 +3,9 @@ package pages
 import (
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/fr0stylo/ddash/views/base"
 	"github.com/fr0stylo/ddash/views/components"
@@ -38,10 +40,85 @@ func deploymentStreamURL(env string, service string) string {
 	return "/deployments/stream?" + query
 }
 
+type deploymentEnvironmentStat struct {
+	Name      string
+	Count7d   int
+	Count30d  int
+	DailyRate string
+	BarWidth  string
+}
+
+func deploymentEnvironmentStats(rows []components.DeploymentRow) []deploymentEnvironmentStat {
+	now := time.Now()
+	type counts struct{ c7, c30 int }
+	byEnv := map[string]counts{}
+	max30 := 0
+	for _, row := range rows {
+		env := strings.TrimSpace(row.Environment)
+		if env == "" {
+			env = "unknown"
+		}
+		parsed, err := time.ParseInLocation("2006-01-02 15:04", strings.TrimSpace(row.DeployedAt), time.Local)
+		if err != nil {
+			continue
+		}
+		delta := now.Sub(parsed)
+		item := byEnv[env]
+		if delta <= 7*24*time.Hour {
+			item.c7++
+		}
+		if delta <= 30*24*time.Hour {
+			item.c30++
+		}
+		if item.c30 > max30 {
+			max30 = item.c30
+		}
+		byEnv[env] = item
+	}
+	stats := make([]deploymentEnvironmentStat, 0, len(byEnv))
+	for env, item := range byEnv {
+		width := 8
+		if max30 > 0 {
+			width = int(float64(item.c30) / float64(max30) * 100)
+			if width < 8 {
+				width = 8
+			}
+		}
+		stats = append(stats, deploymentEnvironmentStat{
+			Name:      env,
+			Count7d:   item.c7,
+			Count30d:  item.c30,
+			DailyRate: deploymentDailyRate(item.c30),
+			BarWidth:  fmt.Sprintf("%d%%", width),
+		})
+	}
+	sort.Slice(stats, func(i, j int) bool { return stats[i].Name < stats[j].Name })
+	return stats
+}
+
+func deploymentDailyRate(count30 int) string {
+	if count30 <= 0 {
+		return "0/day"
+	}
+	return fmt.Sprintf("%.2f/day", float64(count30)/30.0)
+}
+
 templ DeploymentsPage(deployments []components.DeploymentRow, metadataOptions []components.MetadataFilterOption, showSyncStatus bool, showEnvironmentColumn bool, showMetadataFilters bool, enableSSELiveUpdates bool, statusSemanticsMode string) {
 	@base.Doc("DDash - Deployments") {
 		@base.AppHeader("Deployments", "Recent deployments across all services.")
 		<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8" x-data="{ metadataTag: 'all', matchesMetadata(tags) { const value = (tags || '').toLowerCase(); return this.metadataTag === 'all' || value.includes('|' + this.metadataTag.toLowerCase() + '|'); } }">
+			<div class="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+				for _, stat := range deploymentEnvironmentStats(deployments) {
+					<div class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 shadow-sm">
+						<div class="font-semibold text-gray-800">{ stat.Name }</div>
+						<div class="mt-1">{ fmt.Sprint(stat.Count7d) } deploys / 7d</div>
+						<div>{ fmt.Sprint(stat.Count30d) } deploys / 30d · { stat.DailyRate }</div>
+						<div class="mt-2 h-1.5 rounded bg-gray-100">
+							<div class="h-1.5 rounded bg-gray-700" style={ "width:" + stat.BarWidth }></div>
+						</div>
+					</div>
+				}
+			</div>
 			<form id="deployment-filters" class="mb-4 flex flex-wrap gap-3" hx-get="/deployments/filter" hx-target="#deployment-results" hx-swap="outerHTML" hx-trigger="change delay:50ms">
 				<input type="hidden" name="env" value="all" />
 				<select

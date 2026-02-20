@@ -55,25 +55,36 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 					<section class="grid gap-6 lg:grid-cols-3">
 						<div class="space-y-6 lg:col-span-2">
 						@components.Card("Environments") {
+							<div class="mb-3 grid gap-2 sm:grid-cols-3">
+								for _, env := range service.Environments {
+									<div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+										<div class="font-semibold text-gray-800">{ env.Name }</div>
+										<div class="mt-1">{ fmt.Sprint(env.DeployCount7d) } deploys / 7d</div>
+										<div>{ fmt.Sprint(env.DeployCount30d) } deploys / 30d · { env.DailyRate30d }</div>
+									</div>
+								}
+							</div>
 							<div class="overflow-hidden rounded-lg border border-gray-200">
 								<table class="min-w-full divide-y divide-gray-200 text-sm">
 									<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
 										<tr>
 											<th class="px-4 py-3 text-left font-medium">Environment</th>
 											<th class="px-4 py-3 text-left font-medium">Last deploy</th>
+											<th class="px-4 py-3 text-left font-medium">Age</th>
 											<th class="px-4 py-3 text-left font-medium">Deployed ref</th>
 										</tr>
 									</thead>
 									<tbody class="divide-y divide-gray-100">
 										if len(service.Environments) == 0 {
 											<tr>
-												<td class="px-4 py-6 text-center text-sm text-gray-500" colspan="3">No environments yet.</td>
+												<td class="px-4 py-6 text-center text-sm text-gray-500" colspan="4">No environments yet.</td>
 											</tr>
 										}
 										for _, env := range service.Environments {
 											<tr class="hover:bg-gray-50">
 												<td class="px-4 py-3 font-medium text-gray-900">{ env.Name }</td>
 												<td class="px-4 py-3 text-gray-600">{ env.LastDeploy }</td>
+												<td class="px-4 py-3 text-gray-500">{ env.LastDeployedAgo }</td>
 											<td class="px-4 py-3 font-mono text-xs text-gray-700">
 													if env.CommitURL != "" {
 														<a class="text-gray-700 hover:text-gray-900 underline-offset-4 hover:underline" href={ env.CommitURL } target="_blank" rel="noreferrer">{ env.DeployedRef }</a>
@@ -143,6 +154,10 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 									<div class="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 										<div class="text-sm text-gray-700">
 											<span class="font-medium">{ record.DeployedAt }</span>
+											if record.DeployedAgo != "" {
+												<span class="text-gray-400">·</span>
+												<span>{ record.DeployedAgo }</span>
+											}
 											<span class="text-gray-400">·</span>
 											{ fmt.Sprint(record.Commits) } commits
 											if record.Environment != "" {
@@ -154,6 +169,10 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 											<a class="font-mono text-xs text-gray-600 hover:text-gray-900" href={ record.ReleaseURL } target="_blank" rel="noreferrer">{ record.Ref }</a>
 										} else {
 											<span class="font-mono text-xs text-gray-600">{ record.Ref }</span>
+										}
+										<div class="text-xs text-gray-500">{ record.ChangeLog }</div>
+										if record.PreviousRef != "" {
+											<div class="text-[11px] font-mono text-gray-400">from { record.PreviousRef }</div>
 										}
 									</div>
 								}

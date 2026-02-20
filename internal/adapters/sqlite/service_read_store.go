@@ -63,10 +63,12 @@ func (s *Store) ListServiceEnvironments(ctx context.Context, organizationID int6
 	}
 	out := make([]domain.ServiceEnvironment, 0, len(rows))
 	for _, row := range rows {
+		formatted := formatTimestamp(row.ReleasedAt)
 		out = append(out, domain.ServiceEnvironment{
-			Name:       toString(row.Name),
-			LastDeploy: formatTimestamp(row.ReleasedAt),
-			Ref:        toString(row.Ref),
+			Name:            toString(row.Name),
+			LastDeploy:      formatted,
+			LastDeployedAgo: relativeFromFormattedTimestamp(formatted),
+			Ref:             toString(row.Ref),
 		})
 	}
 	return out, nil
@@ -84,10 +86,12 @@ func (s *Store) ListDeploymentHistory(ctx context.Context, organizationID int64,
 	}
 	out := make([]domain.DeploymentRecord, 0, len(rows))
 	for _, row := range rows {
+		formatted := formatTimestamp(row.DeployedAt)
 		out = append(out, domain.DeploymentRecord{
 			Ref:         toString(row.ReleaseRef),
 			Commits:     0,
-			DeployedAt:  formatTimestamp(row.DeployedAt),
+			DeployedAt:  formatted,
+			DeployedAgo: relativeFromFormattedTimestamp(formatted),
 			Environment: toString(row.Environment),
 		})
 	}
@@ -285,6 +289,36 @@ func formatTimestamp(value string) string {
 		}
 	}
 	return text
+}
+
+func relativeFromFormattedTimestamp(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	parsed, err := time.ParseInLocation("2006-01-02 15:04", value, time.Local)
+	if err != nil {
+		return ""
+	}
+	delta := time.Since(parsed)
+	if delta < 0 {
+		delta = -delta
+	}
+	hours := int(delta.Hours())
+	switch {
+	case hours < 1:
+		minutes := int(delta.Minutes())
+		if minutes <= 1 {
+			return "just now"
+		}
+		return fmt.Sprintf("%dm ago", minutes)
+	case hours < 24:
+		return fmt.Sprintf("%dh ago", hours)
+	case hours < 24*30:
+		return fmt.Sprintf("%dd ago", hours/24)
+	default:
+		return fmt.Sprintf("%dmo ago", hours/(24*30))
+	}
 }
 
 func isMissingEnvPriorityTableErr(err error) bool {
