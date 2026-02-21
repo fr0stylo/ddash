@@ -1,0 +1,102 @@
+services:
+  ddash:
+    build:
+      context: .
+      dockerfile: Dockerfile.ddash
+    image: ddash/server:local
+    ports:
+      - "8080:8080"
+    environment:
+      DDASH_ENV: production
+      DDASH_PORT: 8080
+      DDASH_DB_PATH: /data/ddash
+      DDASH_SESSION_SECRET: ${DDASH_SESSION_SECRET:-change-me-long-random-secret}
+      DDASH_PUBLIC_URL: ${DDASH_PUBLIC_URL:-http://localhost:8080}
+      GITHUB_APP_INGESTOR_URL: ${GITHUB_APP_INGESTOR_URL:-http://githubappingestor:8081}
+      GITHUB_APP_INGESTOR_SETUP_TOKEN: ${GITHUB_APP_INGESTOR_SETUP_TOKEN:-change-me-setup-token}
+      DDASH_OTEL_ENABLED: ${DDASH_OTEL_ENABLED:-true}
+      DDASH_OTEL_METRICS_CONSOLE: ${DDASH_OTEL_METRICS_CONSOLE:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4318}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_EXPORTER_OTLP_TRACES_HEADERS: ${OTEL_EXPORTER_OTLP_TRACES_HEADERS:-}
+      OTEL_EXPORTER_OTLP_METRICS_HEADERS: ${OTEL_EXPORTER_OTLP_METRICS_HEADERS:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-ddash}
+      OTEL_SERVICE_VERSION: ${OTEL_SERVICE_VERSION:-dev}
+    volumes:
+      - ddash-data:/data
+    depends_on:
+      - githubappingestor
+      - otel-collector
+
+  githubappingestor:
+    build:
+      context: .
+      dockerfile: Dockerfile.githubappingestor
+    image: ddash/githubappingestor:local
+    ports:
+      - "8081:8081"
+    environment:
+      GITHUB_APP_INGESTOR_ADDR: :8081
+      GITHUB_APP_INGESTOR_DB_PATH: /data/githubapp-ingestor
+      GITHUB_APP_INGESTOR_SETUP_TOKEN: ${GITHUB_APP_INGESTOR_SETUP_TOKEN:-change-me-setup-token}
+      GITHUB_APP_INSTALL_URL: ${GITHUB_APP_INSTALL_URL:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-change-me-webhook-secret}
+      DDASH_ENDPOINT: ${DDASH_PUBLIC_URL:-http://ddash:8080}
+      DDASH_AUTH_TOKEN: ${DDASH_AUTH_TOKEN:-}
+      DDASH_WEBHOOK_SECRET: ${DDASH_WEBHOOK_SECRET:-}
+    volumes:
+      - githubapp-data:/data
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.130.1
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./deploy/observability/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    depends_on:
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.63.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4319:4317"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-remote-write-receiver
+    volumes:
+      - ./deploy/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+
+  grafana:
+    image: grafana/grafana:12.0.2
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - jaeger
+
+volumes:
+  ddash-data:
+  githubapp-data:
+  prometheus-data:
+  grafana-data:

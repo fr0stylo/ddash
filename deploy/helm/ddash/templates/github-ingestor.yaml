@@ -1,0 +1,185 @@
+{{- if .Values.githubIngestor.enabled }}
+{{- $name := include "ddash.fullname" . -}}
+{{- if eq .Values.githubIngestor.workload.kind "StatefulSet" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}-githubingestor
+spec:
+  replicas: {{ .Values.githubIngestor.replicaCount }}
+  serviceName: {{ $name }}-githubingestor
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ddash.name" . }}
+      app.kubernetes.io/component: githubingestor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ddash.name" . }}
+        app.kubernetes.io/component: githubingestor
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+      containers:
+        - name: githubingestor
+          image: "{{ .Values.githubIngestor.image.repository }}:{{ .Values.githubIngestor.image.tag }}"
+          imagePullPolicy: {{ .Values.githubIngestor.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.githubIngestor.service.targetPort }}
+          env:
+            - name: GITHUB_APP_INGESTOR_ADDR
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_ADDR | quote }}
+            - name: GITHUB_APP_INGESTOR_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_UI_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_UI_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_START_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_START_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_CALLBACK_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_CALLBACK_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_DELETE_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_DELETE_PATH | quote }}
+            - name: GITHUB_APP_INSTALL_URL
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INSTALL_URL | quote }}
+            - name: GITHUB_APP_INGESTOR_DEFAULT_ENV
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_DEFAULT_ENV | quote }}
+            - name: GITHUB_APP_INGESTOR_SOURCE
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SOURCE | quote }}
+            - name: GITHUB_APP_INGESTOR_DB_PATH
+              value: /data/githubapp-ingestor
+            - name: DDASH_ENDPOINT
+              value: {{ .Values.ddash.env.DDASH_PUBLIC_URL | quote }}
+            - name: DDASH_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: DDASH_AUTH_TOKEN
+            - name: DDASH_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: DDASH_WEBHOOK_SECRET
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: GITHUB_WEBHOOK_SECRET
+            - name: GITHUB_APP_INGESTOR_SETUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: GITHUB_APP_INGESTOR_SETUP_TOKEN
+          volumeMounts:
+            - name: githubapp-data
+              mountPath: /data
+  {{- if .Values.githubIngestor.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: githubapp-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.githubIngestor.persistence.size }}
+        {{- if .Values.githubIngestor.persistence.storageClassName }}
+        storageClassName: {{ .Values.githubIngestor.persistence.storageClassName }}
+        {{- end }}
+  {{- end }}
+{{- else }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-githubingestor
+spec:
+  replicas: {{ .Values.githubIngestor.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ddash.name" . }}
+      app.kubernetes.io/component: githubingestor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ddash.name" . }}
+        app.kubernetes.io/component: githubingestor
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+      containers:
+        - name: githubingestor
+          image: "{{ .Values.githubIngestor.image.repository }}:{{ .Values.githubIngestor.image.tag }}"
+          imagePullPolicy: {{ .Values.githubIngestor.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.githubIngestor.service.targetPort }}
+          env:
+            - name: GITHUB_APP_INGESTOR_ADDR
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_ADDR | quote }}
+            - name: GITHUB_APP_INGESTOR_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_UI_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_UI_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_START_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_START_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_CALLBACK_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_CALLBACK_PATH | quote }}
+            - name: GITHUB_APP_INGESTOR_SETUP_DELETE_PATH
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SETUP_DELETE_PATH | quote }}
+            - name: GITHUB_APP_INSTALL_URL
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INSTALL_URL | quote }}
+            - name: GITHUB_APP_INGESTOR_DEFAULT_ENV
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_DEFAULT_ENV | quote }}
+            - name: GITHUB_APP_INGESTOR_SOURCE
+              value: {{ .Values.githubIngestor.env.GITHUB_APP_INGESTOR_SOURCE | quote }}
+            - name: GITHUB_APP_INGESTOR_DB_PATH
+              value: /data/githubapp-ingestor
+            - name: DDASH_ENDPOINT
+              value: {{ .Values.ddash.env.DDASH_PUBLIC_URL | quote }}
+            - name: DDASH_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: DDASH_AUTH_TOKEN
+            - name: DDASH_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: DDASH_WEBHOOK_SECRET
+            - name: GITHUB_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: GITHUB_WEBHOOK_SECRET
+            - name: GITHUB_APP_INGESTOR_SETUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: GITHUB_APP_INGESTOR_SETUP_TOKEN
+          volumeMounts:
+            - name: githubapp-data
+              mountPath: /data
+      volumes:
+        - name: githubapp-data
+          {{- if .Values.githubIngestor.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}-githubingestor-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-githubingestor
+spec:
+  type: {{ .Values.githubIngestor.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "ddash.name" . }}
+    app.kubernetes.io/component: githubingestor
+  ports:
+    - port: {{ .Values.githubIngestor.service.port }}
+      targetPort: {{ .Values.githubIngestor.service.targetPort }}
+{{- end }}

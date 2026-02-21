@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/fr0stylo/ddash/internal/db/queries"
 )
@@ -124,6 +125,7 @@ func appendEvent(
 		EventType:      eventType,
 		EventSource:    "tests/source",
 		EventTimestamp: timestamp,
+		EventTsMs:      mustUnixMillis(t, timestamp),
 		SubjectID:      subjectID,
 		SubjectSource:  sql.NullString{String: "tests/source", Valid: true},
 		SubjectType:    "service",
@@ -133,4 +135,13 @@ func appendEvent(
 	if err != nil {
 		t.Fatalf("append event %s: %v", eventID, err)
 	}
+}
+
+func mustUnixMillis(t *testing.T, value string) int64 {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
+	if err != nil {
+		t.Fatalf("parse timestamp %q: %v", value, err)
+	}
+	return parsed.UTC().UnixMilli()
 }

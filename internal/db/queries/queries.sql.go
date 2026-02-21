@@ -10,13 +10,14 @@ import (
 	"database/sql"
 )
 
-const appendEventStore = `-- name: AppendEventStore :exec
+const appendEventStore = `-- name: AppendEventStore :one
 INSERT INTO event_store (
   organization_id,
   event_id,
   event_type,
   event_source,
   event_timestamp,
+  event_ts_ms,
   subject_id,
   subject_source,
   subject_type,
@@ -33,9 +34,11 @@ VALUES (
   ?7,
   ?8,
   ?9,
-  ?10
+  ?10,
+  ?11
 )
 ON CONFLICT(organization_id, event_source, event_id) DO NOTHING
+RETURNING seq
 `
 
 type AppendEventStoreParams struct {
@@ -44,6 +47,7 @@ type AppendEventStoreParams struct {
 	EventType      string
 	EventSource    string
 	EventTimestamp string
+	EventTsMs      int64
 	SubjectID      string
 	SubjectSource  sql.NullString
 	SubjectType    string
@@ -51,20 +55,23 @@ type AppendEventStoreParams struct {
 	RawEventJson   string
 }
 
-func (q *Queries) AppendEventStore(ctx context.Context, arg AppendEventStoreParams) error {
-	_, err := q.db.ExecContext(ctx, appendEventStore,
+func (q *Queries) AppendEventStore(ctx context.Context, arg AppendEventStoreParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, appendEventStore,
 		arg.OrganizationID,
 		arg.EventID,
 		arg.EventType,
 		arg.EventSource,
 		arg.EventTimestamp,
+		arg.EventTsMs,
 		arg.SubjectID,
 		arg.SubjectSource,
 		arg.SubjectType,
 		arg.ChainID,
 		arg.RawEventJson,
 	)
-	return err
+	var seq int64
+	err := row.Scan(&seq)
+	return seq, err
 }
 
 const countEventStore = `-- name: CountEventStore :one
@@ -74,6 +81,38 @@ FROM event_store
 
 func (q *Queries) CountEventStore(ctx context.Context) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countEventStore)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countEventStoreByOrganization = `-- name: CountEventStoreByOrganization :one
+SELECT COUNT(*)
+FROM event_store
+WHERE organization_id = ?1
+`
+
+func (q *Queries) CountEventStoreByOrganization(ctx context.Context, organizationID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countEventStoreByOrganization, organizationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countEventStoreByOrganizationSinceMs = `-- name: CountEventStoreByOrganizationSinceMs :one
+SELECT COUNT(*)
+FROM event_store
+WHERE organization_id = ?1
+  AND event_ts_ms >= ?2
+`
+
+type CountEventStoreByOrganizationSinceMsParams struct {
+	OrganizationID int64
+	SinceMs        int64
+}
+
+func (q *Queries) CountEventStoreByOrganizationSinceMs(ctx context.Context, arg CountEventStoreByOrganizationSinceMsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countEventStoreByOrganizationSinceMs, arg.OrganizationID, arg.SinceMs)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -375,6 +414,123 @@ func (q *Queries) GetOrganizationMemberRole(ctx context.Context, arg GetOrganiza
 	return role, err
 }
 
+const getOrganizationRenderVersion = `-- name: GetOrganizationRenderVersion :one
+SELECT COALESCE(MAX(version_value), 0) AS version
+FROM (
+  SELECT COALESCE(MAX(seq), 0) AS version_value
+  FROM event_store
+  WHERE event_store.organization_id = ?1
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organizations
+  WHERE id = ?1
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM service_metadata
+  WHERE service_metadata.organization_id = ?1
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_required_fields
+  WHERE organization_required_fields.organization_id = ?1
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_environment_priorities
+  WHERE organization_environment_priorities.organization_id = ?1
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_features
+  WHERE organization_features.organization_id = ?1
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_preferences
+  WHERE organization_preferences.organization_id = ?1
+)
+`
+
+func (q *Queries) GetOrganizationRenderVersion(ctx context.Context, orgID int64) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationRenderVersion, orgID)
+	var version interface{}
+	err := row.Scan(&version)
+	return version, err
+}
+
+const getServiceCurrentState = `-- name: GetServiceCurrentState :one
+SELECT
+  latest_status,
+  latest_event_ts_ms,
+  drift_count,
+  failed_streak
+FROM service_current_state
+WHERE organization_id = ?1
+  AND service_name = ?2
+LIMIT 1
+`
+
+type GetServiceCurrentStateParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+type GetServiceCurrentStateRow struct {
+	LatestStatus    string
+	LatestEventTsMs int64
+	DriftCount      int64
+	FailedStreak    int64
+}
+
+func (q *Queries) GetServiceCurrentState(ctx context.Context, arg GetServiceCurrentStateParams) (GetServiceCurrentStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getServiceCurrentState, arg.OrganizationID, arg.ServiceName)
+	var i GetServiceCurrentStateRow
+	err := row.Scan(
+		&i.LatestStatus,
+		&i.LatestEventTsMs,
+		&i.DriftCount,
+		&i.FailedStreak,
+	)
+	return i, err
+}
+
+const getServiceDeliveryStats30d = `-- name: GetServiceDeliveryStats30d :one
+SELECT
+  COALESCE(SUM(deploy_success_count), 0) AS deploy_success_count,
+  COALESCE(SUM(deploy_failure_count), 0) AS deploy_failure_count,
+  COALESCE(SUM(rollback_count), 0) AS rollback_count
+FROM service_delivery_stats_daily
+WHERE organization_id = ?1
+  AND service_name = ?2
+  AND day_utc >= date('now', '-30 day')
+`
+
+type GetServiceDeliveryStats30dParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+type GetServiceDeliveryStats30dRow struct {
+	DeploySuccessCount interface{}
+	DeployFailureCount interface{}
+	RollbackCount      interface{}
+}
+
+func (q *Queries) GetServiceDeliveryStats30d(ctx context.Context, arg GetServiceDeliveryStats30dParams) (GetServiceDeliveryStats30dRow, error) {
+	row := q.db.QueryRowContext(ctx, getServiceDeliveryStats30d, arg.OrganizationID, arg.ServiceName)
+	var i GetServiceDeliveryStats30dRow
+	err := row.Scan(&i.DeploySuccessCount, &i.DeployFailureCount, &i.RollbackCount)
+	return i, err
+}
+
 const getServiceLatestFromEvents = `-- name: GetServiceLatestFromEvents :one
 SELECT
   CASE
@@ -388,7 +544,7 @@ FROM event_store es
 WHERE es.subject_type = 'service'
   AND es.organization_id = ?1
   AND (es.subject_id = ?2 OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = ?2)
-ORDER BY es.event_timestamp DESC, es.seq DESC
+ORDER BY es.event_ts_ms DESC, es.seq DESC
 LIMIT 1
 `
 
@@ -476,7 +632,7 @@ FROM event_store es
 WHERE es.subject_type = 'service'
   AND es.organization_id = ?1
   AND (es.subject_id = ?2 OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = ?2)
-ORDER BY es.event_timestamp DESC, es.seq DESC
+ORDER BY es.event_ts_ms DESC, es.seq DESC
 LIMIT ?3
 `
 
@@ -536,7 +692,7 @@ WHERE es.subject_type = 'service'
   AND es.organization_id = ?1
   AND (?2 = '' OR ?2 = 'all' OR json_extract(es.raw_event_json, '$.subject.content.environment.id') = ?2)
   AND (?3 = '' OR ?3 = 'all' OR es.subject_id = ?3 OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = ?3)
-ORDER BY es.event_timestamp DESC, es.seq DESC
+ORDER BY es.event_ts_ms DESC, es.seq DESC
 `
 
 type ListDeploymentsFromEventsParams struct {
@@ -601,6 +757,52 @@ func (q *Queries) ListDistinctServiceEnvironmentsFromEvents(ctx context.Context,
 			return nil, err
 		}
 		items = append(items, environment)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventStoreDailyVolume = `-- name: ListEventStoreDailyVolume :many
+SELECT
+  date(datetime(event_ts_ms / 1000, 'unixepoch')) AS day,
+  COUNT(*) AS total
+FROM event_store
+WHERE organization_id = ?1
+  AND event_ts_ms >= ?2
+GROUP BY day
+ORDER BY day DESC
+LIMIT ?3
+`
+
+type ListEventStoreDailyVolumeParams struct {
+	OrganizationID int64
+	SinceMs        int64
+	Limit          int64
+}
+
+type ListEventStoreDailyVolumeRow struct {
+	Day   interface{}
+	Total int64
+}
+
+func (q *Queries) ListEventStoreDailyVolume(ctx context.Context, arg ListEventStoreDailyVolumeParams) ([]ListEventStoreDailyVolumeRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEventStoreDailyVolume, arg.OrganizationID, arg.SinceMs, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEventStoreDailyVolumeRow
+	for rows.Next() {
+		var i ListEventStoreDailyVolumeRow
+		if err := rows.Scan(&i.Day, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -1012,12 +1214,76 @@ func (q *Queries) ListPendingOrganizationJoinRequests(ctx context.Context, organ
 	return items, nil
 }
 
+const listServiceChangeLinksRecent = `-- name: ListServiceChangeLinksRecent :many
+SELECT
+  event_ts_ms,
+  chain_id,
+  environment,
+  artifact_id,
+  pipeline_run_id,
+  run_url,
+  actor_name
+FROM service_change_links
+WHERE organization_id = ?1
+  AND service_name = ?2
+ORDER BY event_ts_ms DESC
+LIMIT ?3
+`
+
+type ListServiceChangeLinksRecentParams struct {
+	OrganizationID int64
+	ServiceName    string
+	Limit          int64
+}
+
+type ListServiceChangeLinksRecentRow struct {
+	EventTsMs     int64
+	ChainID       sql.NullString
+	Environment   string
+	ArtifactID    string
+	PipelineRunID string
+	RunUrl        string
+	ActorName     string
+}
+
+func (q *Queries) ListServiceChangeLinksRecent(ctx context.Context, arg ListServiceChangeLinksRecentParams) ([]ListServiceChangeLinksRecentRow, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceChangeLinksRecent, arg.OrganizationID, arg.ServiceName, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListServiceChangeLinksRecentRow
+	for rows.Next() {
+		var i ListServiceChangeLinksRecentRow
+		if err := rows.Scan(
+			&i.EventTsMs,
+			&i.ChainID,
+			&i.Environment,
+			&i.ArtifactID,
+			&i.PipelineRunID,
+			&i.RunUrl,
+			&i.ActorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listServiceEnvironmentsFromEvents = `-- name: ListServiceEnvironmentsFromEvents :many
 WITH service_events AS (
   SELECT
     es.seq,
     COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
     es.event_timestamp,
+    es.event_ts_ms,
     COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS artifact_id
   FROM event_store es
   WHERE es.subject_type = 'service'
@@ -1030,7 +1296,7 @@ WITH service_events AS (
     artifact_id,
     row_number() OVER (
       PARTITION BY environment
-      ORDER BY event_timestamp DESC, seq DESC
+      ORDER BY event_ts_ms DESC, seq DESC
     ) AS rn
   FROM service_events
 )
@@ -1083,6 +1349,7 @@ WITH service_events AS (
     es.seq,
     es.event_type,
     es.event_timestamp,
+    es.event_ts_ms,
     CASE
       WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
       ELSE es.subject_id
@@ -1110,7 +1377,7 @@ WITH service_events AS (
     artifact_id,
     row_number() OVER (
       PARTITION BY service_name
-      ORDER BY event_timestamp DESC, seq DESC
+      ORDER BY event_ts_ms DESC, seq DESC
     ) AS rn
   FROM service_events
 )
@@ -1173,6 +1440,7 @@ WITH service_events AS (
     es.seq,
     es.event_type,
     es.event_timestamp,
+    es.event_ts_ms,
     CASE
       WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
       ELSE es.subject_id
@@ -1199,7 +1467,7 @@ WITH service_events AS (
     artifact_id,
     row_number() OVER (
       PARTITION BY service_name
-      ORDER BY event_timestamp DESC, seq DESC
+      ORDER BY event_ts_ms DESC, seq DESC
     ) AS rn
   FROM service_events
 )
@@ -1482,6 +1750,218 @@ type UpsertOrganizationPreferenceParams struct {
 
 func (q *Queries) UpsertOrganizationPreference(ctx context.Context, arg UpsertOrganizationPreferenceParams) error {
 	_, err := q.db.ExecContext(ctx, upsertOrganizationPreference, arg.OrganizationID, arg.PreferenceKey, arg.PreferenceValue)
+	return err
+}
+
+const upsertServiceChangeLinkFromEventSeq = `-- name: UpsertServiceChangeLinkFromEventSeq :exec
+INSERT INTO service_change_links (
+  organization_id,
+  service_name,
+  event_seq,
+  event_ts_ms,
+  chain_id,
+  environment,
+  artifact_id,
+  pipeline_run_id,
+  run_url,
+  actor_name
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  es.seq,
+  es.event_ts_ms,
+  es.chain_id,
+  COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS artifact_id,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.pipeline.runId'), '') AS pipeline_run_id,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.pipeline.url'), '') AS run_url,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.actor.name'), '') AS actor_name
+FROM event_store es
+WHERE es.organization_id = ?1
+  AND es.seq = ?2
+  AND es.subject_type = 'service'
+ON CONFLICT(organization_id, service_name, event_seq) DO NOTHING
+`
+
+type UpsertServiceChangeLinkFromEventSeqParams struct {
+	OrganizationID int64
+	Seq            int64
+}
+
+func (q *Queries) UpsertServiceChangeLinkFromEventSeq(ctx context.Context, arg UpsertServiceChangeLinkFromEventSeqParams) error {
+	_, err := q.db.ExecContext(ctx, upsertServiceChangeLinkFromEventSeq, arg.OrganizationID, arg.Seq)
+	return err
+}
+
+const upsertServiceCurrentStateByService = `-- name: UpsertServiceCurrentStateByService :exec
+INSERT INTO service_current_state (
+  organization_id,
+  service_name,
+  latest_event_seq,
+  latest_event_type,
+  latest_event_ts_ms,
+  latest_status,
+  latest_artifact_id,
+  latest_environment,
+  drift_count,
+  failed_streak
+)
+SELECT
+  ?1,
+  ?2,
+  ses.latest_event_seq,
+  ses.latest_event_type,
+  ses.latest_event_ts_ms,
+  ses.latest_status,
+  ses.latest_artifact_id,
+  ses.environment,
+  COALESCE((
+    SELECT COUNT(DISTINCT NULLIF(se2.latest_artifact_id, ''))
+    FROM service_env_state se2
+    WHERE se2.organization_id = ?1
+      AND se2.service_name = ?2
+  ), 0),
+  COALESCE((
+    SELECT SUM(CASE WHEN se3.latest_status IN ('warning', 'out-of-sync') THEN 1 ELSE 0 END)
+    FROM service_env_state se3
+    WHERE se3.organization_id = ?1
+      AND se3.service_name = ?2
+  ), 0)
+FROM service_env_state ses
+WHERE ses.organization_id = ?1
+  AND ses.service_name = ?2
+ORDER BY ses.latest_event_ts_ms DESC, ses.latest_event_seq DESC
+LIMIT 1
+ON CONFLICT(organization_id, service_name) DO UPDATE SET
+  latest_event_seq = excluded.latest_event_seq,
+  latest_event_type = excluded.latest_event_type,
+  latest_event_ts_ms = excluded.latest_event_ts_ms,
+  latest_status = excluded.latest_status,
+  latest_artifact_id = excluded.latest_artifact_id,
+  latest_environment = excluded.latest_environment,
+  drift_count = excluded.drift_count,
+  failed_streak = excluded.failed_streak,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertServiceCurrentStateByServiceParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+func (q *Queries) UpsertServiceCurrentStateByService(ctx context.Context, arg UpsertServiceCurrentStateByServiceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertServiceCurrentStateByService, arg.OrganizationID, arg.ServiceName)
+	return err
+}
+
+const upsertServiceDeliveryStatsDailyFromEventSeq = `-- name: UpsertServiceDeliveryStatsDailyFromEventSeq :exec
+INSERT INTO service_delivery_stats_daily (
+  organization_id,
+  service_name,
+  day_utc,
+  deploy_success_count,
+  deploy_failure_count,
+  rollback_count
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  date(datetime(es.event_ts_ms / 1000, 'unixepoch')) AS day_utc,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%'
+      OR es.event_type LIKE 'dev.cdevents.service.upgraded.%'
+      OR es.event_type LIKE 'dev.cdevents.service.published.%' THEN 1
+    ELSE 0
+  END AS deploy_success_count,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.removed.%' THEN 1
+    ELSE 0
+  END AS deploy_failure_count,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.rolledback.%' THEN 1
+    ELSE 0
+  END AS rollback_count
+FROM event_store es
+WHERE es.organization_id = ?1
+  AND es.seq = ?2
+  AND es.subject_type = 'service'
+ON CONFLICT(organization_id, service_name, day_utc) DO UPDATE SET
+  deploy_success_count = service_delivery_stats_daily.deploy_success_count + excluded.deploy_success_count,
+  deploy_failure_count = service_delivery_stats_daily.deploy_failure_count + excluded.deploy_failure_count,
+  rollback_count = service_delivery_stats_daily.rollback_count + excluded.rollback_count,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertServiceDeliveryStatsDailyFromEventSeqParams struct {
+	OrganizationID int64
+	Seq            int64
+}
+
+func (q *Queries) UpsertServiceDeliveryStatsDailyFromEventSeq(ctx context.Context, arg UpsertServiceDeliveryStatsDailyFromEventSeqParams) error {
+	_, err := q.db.ExecContext(ctx, upsertServiceDeliveryStatsDailyFromEventSeq, arg.OrganizationID, arg.Seq)
+	return err
+}
+
+const upsertServiceEnvStateFromEventSeq = `-- name: UpsertServiceEnvStateFromEventSeq :exec
+INSERT INTO service_env_state (
+  organization_id,
+  service_name,
+  environment,
+  latest_event_seq,
+  latest_event_type,
+  latest_event_ts_ms,
+  latest_status,
+  latest_artifact_id
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+  es.seq,
+  es.event_type,
+  es.event_ts_ms,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%' THEN 'synced'
+    WHEN es.event_type LIKE 'dev.cdevents.service.upgraded.%' THEN 'synced'
+    WHEN es.event_type LIKE 'dev.cdevents.service.published.%' THEN 'synced'
+    WHEN es.event_type LIKE 'dev.cdevents.service.rolledback.%' THEN 'warning'
+    WHEN es.event_type LIKE 'dev.cdevents.service.removed.%' THEN 'out-of-sync'
+    ELSE 'unknown'
+  END AS latest_status,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS latest_artifact_id
+FROM event_store es
+WHERE es.organization_id = ?1
+  AND es.seq = ?2
+  AND es.subject_type = 'service'
+ON CONFLICT(organization_id, service_name, environment) DO UPDATE SET
+  latest_event_seq = excluded.latest_event_seq,
+  latest_event_type = excluded.latest_event_type,
+  latest_event_ts_ms = excluded.latest_event_ts_ms,
+  latest_status = excluded.latest_status,
+  latest_artifact_id = excluded.latest_artifact_id,
+  updated_at = CURRENT_TIMESTAMP
+WHERE
+  excluded.latest_event_ts_ms > service_env_state.latest_event_ts_ms
+  OR (excluded.latest_event_ts_ms = service_env_state.latest_event_ts_ms AND excluded.latest_event_seq > service_env_state.latest_event_seq)
+`
+
+type UpsertServiceEnvStateFromEventSeqParams struct {
+	OrganizationID int64
+	Seq            int64
+}
+
+func (q *Queries) UpsertServiceEnvStateFromEventSeq(ctx context.Context, arg UpsertServiceEnvStateFromEventSeqParams) error {
+	_, err := q.db.ExecContext(ctx, upsertServiceEnvStateFromEventSeq, arg.OrganizationID, arg.Seq)
 	return err
 }
 

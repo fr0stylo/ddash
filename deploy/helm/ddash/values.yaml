@@ -1,0 +1,92 @@
+imagePullSecrets: []
+
+ddash:
+  workload:
+    kind: Deployment # Deployment or StatefulSet
+  image:
+    repository: ghcr.io/fr0stylo/ddash-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClassName: ""
+  env:
+    DDASH_ENV: production
+    DDASH_PORT: "8080"
+    DDASH_PUBLIC_URL: "https://ddash.example.com"
+
+githubIngestor:
+  enabled: true
+  workload:
+    kind: Deployment # Deployment or StatefulSet
+  image:
+    repository: ghcr.io/fr0stylo/ddash-githubappingestor
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: ""
+  env:
+    GITHUB_APP_INGESTOR_ADDR: ":8081"
+    GITHUB_APP_INGESTOR_PATH: "/webhooks/github"
+    GITHUB_APP_INGESTOR_SETUP_UI_PATH: "/setup"
+    GITHUB_APP_INGESTOR_SETUP_START_PATH: "/setup/start"
+    GITHUB_APP_INGESTOR_SETUP_CALLBACK_PATH: "/setup/callback"
+    GITHUB_APP_INGESTOR_SETUP_DELETE_PATH: "/setup/mappings/delete"
+    GITHUB_APP_INSTALL_URL: ""
+    GITHUB_APP_INGESTOR_DEFAULT_ENV: "production"
+    GITHUB_APP_INGESTOR_SOURCE: "github/app"
+
+secrets:
+  ddashSessionSecret: "change-me-session-secret"
+  githubIngestorSetupToken: "change-me-setup-token"
+  githubWebhookSecret: "change-me-webhook-secret"
+  ddashAuthTokenFallback: ""
+  ddashWebhookSecretFallback: ""
+
+ingress:
+  ddash:
+    enabled: false
+    className: ""
+    host: ddash.example.com
+    annotations: {}
+    tls: []
+  githubIngestor:
+    enabled: false
+    className: ""
+    host: githubingestor.example.com
+    annotations: {}
+    tls: []
+
+gatewayAPI:
+  enabled: false
+  ddash:
+    enabled: false
+    hostnames:
+      - ddash.example.com
+    parentRefs:
+      - name: shared-gateway
+        namespace: default
+        sectionName: http
+    pathPrefix: /
+  githubIngestor:
+    enabled: false
+    hostnames:
+      - githubingestor.example.com
+    parentRefs:
+      - name: shared-gateway
+        namespace: default
+        sectionName: http
+    pathPrefix: /

@@ -45,7 +45,7 @@ func (v *ViewRoutes) handleServiceDetails(c echo.Context) error {
 	if settings.MaskSensitiveMetadataValues {
 		detail.MetadataFields = maskSensitiveFields(detail.MetadataFields)
 	}
-	return c.Render(http.StatusOK, "", pages.ServicePage(mapDomainServiceDetail(detail), settings.ShowMetadataBadges, settings.ShowDeploymentHistory, settings.AllowServiceMetadataEditing, settings.ShowIntegrationTypeBadges, csrfToken(c)))
+	return c.Render(http.StatusOK, "", pages.ServicePage(mapDomainServiceDetail(detail), settings.ShowMetadataBadges, settings.ShowDeploymentHistory, settings.AllowServiceMetadataEditing, settings.ShowIntegrationTypeBadges, settings.ShowServiceDetailInsights, csrfToken(c)))
 }
 
 func (v *ViewRoutes) handleServiceGrid(c echo.Context) error {
@@ -92,7 +92,6 @@ func (v *ViewRoutes) handleServiceFilter(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-
 	services, err := v.read.GetServicesByEnv(ctx, orgID, env)
 	if err != nil {
 		return err

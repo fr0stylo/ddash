@@ -83,6 +83,24 @@ type DeploymentRecord struct {
 	Environment string
 }
 
+type ServiceRiskEvent struct {
+	When          string
+	Environment   string
+	Artifact      string
+	ChainID       string
+	PipelineRunID string
+	RunURL        string
+	ActorName     string
+}
+
+type GitHubInstallationMapping struct {
+	InstallationID     int64
+	OrganizationLabel  string
+	Endpoint           string
+	DefaultEnvironment string
+	Status             string
+}
+
 type DeploymentStatus string
 
 type DeploymentRow struct {
@@ -108,6 +126,14 @@ type ServiceDetail struct {
 	Environments      []ServiceEnvironment
 	PendingCommits    []GitCommit
 	DeploymentHistory []DeploymentRecord
+	LastStatus        string
+	DriftCount        int
+	FailedStreak      int
+	Success30d        int
+	Failures30d       int
+	Rollbacks30d      int
+	ChangeFailureRate string
+	RiskEvents        []ServiceRiskEvent
 }
 
 type StatusOption struct {

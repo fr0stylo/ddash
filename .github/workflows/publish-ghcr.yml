@@ -1,0 +1,111 @@
+name: Publish GHCR Images and Helm Chart
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata (ddash)
+        id: ddash_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.vars.outputs.owner_lc }}/ddash-server
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.vars.outputs.version }}
+            type=sha
+
+      - name: Build and push ddash image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.ddash
+          push: true
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          tags: ${{ steps.ddash_meta.outputs.tags }}
+          labels: ${{ steps.ddash_meta.outputs.labels }}
+
+      - name: Docker metadata (github app ingestor)
+        id: ingestor_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.vars.outputs.owner_lc }}/ddash-githubappingestor
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ steps.vars.outputs.version }}
+            type=sha
+
+      - name: Build and push github app ingestor image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.githubappingestor
+          push: true
+          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          tags: ${{ steps.ingestor_meta.outputs.tags }}
+          labels: ${{ steps.ingestor_meta.outputs.labels }}
+
+  publish-helm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set variables
+        id: vars
+        run: |
+          echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Log in to GHCR OCI registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Lint chart
+        run: helm lint ./deploy/helm/ddash
+
+      - name: Package chart
+        run: |
+          mkdir -p dist
+          helm package ./deploy/helm/ddash \
+            --version "${{ steps.vars.outputs.version }}" \
+            --app-version "${{ steps.vars.outputs.version }}" \
+            --destination dist
+
+      - name: Push chart to GHCR OCI
+        run: |
+          helm push "dist/ddash-${{ steps.vars.outputs.version }}.tgz" "oci://ghcr.io/${{ steps.vars.outputs.owner_lc }}/charts"

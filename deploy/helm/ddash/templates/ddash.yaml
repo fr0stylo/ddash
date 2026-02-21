@@ -1,0 +1,139 @@
+{{- $name := include "ddash.fullname" . -}}
+{{- if eq .Values.ddash.workload.kind "StatefulSet" }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}-ddash
+spec:
+  replicas: {{ .Values.ddash.replicaCount }}
+  serviceName: {{ $name }}-ddash
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ddash.name" . }}
+      app.kubernetes.io/component: ddash
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ddash.name" . }}
+        app.kubernetes.io/component: ddash
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+      containers:
+        - name: ddash
+          image: "{{ .Values.ddash.image.repository }}:{{ .Values.ddash.image.tag }}"
+          imagePullPolicy: {{ .Values.ddash.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ddash.service.targetPort }}
+          env:
+            - name: DDASH_ENV
+              value: {{ .Values.ddash.env.DDASH_ENV | quote }}
+            - name: DDASH_PORT
+              value: {{ .Values.ddash.env.DDASH_PORT | quote }}
+            - name: DDASH_DB_PATH
+              value: /data/ddash
+            - name: DDASH_PUBLIC_URL
+              value: {{ .Values.ddash.env.DDASH_PUBLIC_URL | quote }}
+            - name: GITHUB_APP_INGESTOR_URL
+              value: "http://{{ $name }}-githubingestor:{{ .Values.githubIngestor.service.port }}"
+            - name: DDASH_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: DDASH_SESSION_SECRET
+            - name: GITHUB_APP_INGESTOR_SETUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: GITHUB_APP_INGESTOR_SETUP_TOKEN
+          volumeMounts:
+            - name: ddash-data
+              mountPath: /data
+  {{- if .Values.ddash.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: ddash-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.ddash.persistence.size }}
+        {{- if .Values.ddash.persistence.storageClassName }}
+        storageClassName: {{ .Values.ddash.persistence.storageClassName }}
+        {{- end }}
+  {{- end }}
+{{- else }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}-ddash
+spec:
+  replicas: {{ .Values.ddash.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ddash.name" . }}
+      app.kubernetes.io/component: ddash
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ddash.name" . }}
+        app.kubernetes.io/component: ddash
+    spec:
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
+      {{- end }}
+      containers:
+        - name: ddash
+          image: "{{ .Values.ddash.image.repository }}:{{ .Values.ddash.image.tag }}"
+          imagePullPolicy: {{ .Values.ddash.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.ddash.service.targetPort }}
+          env:
+            - name: DDASH_ENV
+              value: {{ .Values.ddash.env.DDASH_ENV | quote }}
+            - name: DDASH_PORT
+              value: {{ .Values.ddash.env.DDASH_PORT | quote }}
+            - name: DDASH_DB_PATH
+              value: /data/ddash
+            - name: DDASH_PUBLIC_URL
+              value: {{ .Values.ddash.env.DDASH_PUBLIC_URL | quote }}
+            - name: GITHUB_APP_INGESTOR_URL
+              value: "http://{{ $name }}-githubingestor:{{ .Values.githubIngestor.service.port }}"
+            - name: DDASH_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: DDASH_SESSION_SECRET
+            - name: GITHUB_APP_INGESTOR_SETUP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $name }}-secrets
+                  key: GITHUB_APP_INGESTOR_SETUP_TOKEN
+          volumeMounts:
+            - name: ddash-data
+              mountPath: /data
+      volumes:
+        - name: ddash-data
+          {{- if .Values.ddash.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}-ddash-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-ddash
+spec:
+  type: {{ .Values.ddash.service.type }}
+  selector:
+    app.kubernetes.io/name: {{ include "ddash.name" . }}
+    app.kubernetes.io/component: ddash
+  ports:
+    - port: {{ .Values.ddash.service.port }}
+      targetPort: {{ .Values.ddash.service.targetPort }}

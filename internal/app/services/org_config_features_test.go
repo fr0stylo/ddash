@@ -132,6 +132,7 @@ func TestOrganizationConfigGetSettingsReadsFeaturesAndPreferences(t *testing.T) 
 			{Key: "show_environment_column", Enabled: false},
 			{Key: "enable_sse_live_updates", Enabled: false},
 			{Key: "show_onboarding_hints", Enabled: false},
+			{Key: "show_service_detail_insights", Enabled: false},
 		},
 		prefs: []ports.OrganizationPreference{
 			{Key: "deployment_retention_days", Value: "14"},
@@ -146,7 +147,7 @@ func TestOrganizationConfigGetSettingsReadsFeaturesAndPreferences(t *testing.T) 
 		t.Fatalf("GetSettings error: %v", err)
 	}
 
-	if settings.ShowSyncStatus || settings.ShowMetadataBadges || settings.ShowEnvironmentColumn || settings.EnableSSELiveUpdates || settings.ShowOnboardingHints {
+	if settings.ShowSyncStatus || settings.ShowMetadataBadges || settings.ShowEnvironmentColumn || settings.EnableSSELiveUpdates || settings.ShowOnboardingHints || settings.ShowServiceDetailInsights {
 		t.Fatalf("expected disabled features from store, got %+v", settings)
 	}
 	if settings.DeploymentRetentionDays != 14 || settings.DefaultDashboardView != "table" || settings.StatusSemanticsMode != "plain" {
@@ -173,6 +174,7 @@ func TestOrganizationConfigUpdateSettingsForwardsFeatureFields(t *testing.T) {
 		AllowServiceMetadataEditing: false,
 		ShowOnboardingHints:         false,
 		ShowIntegrationTypeBadges:   false,
+		ShowServiceDetailInsights:   false,
 		DeploymentRetentionDays:     7,
 		DefaultDashboardView:        "table",
 		StatusSemanticsMode:         "plain",

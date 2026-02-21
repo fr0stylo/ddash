@@ -76,6 +76,7 @@ type OrganizationSettingsUpdate struct {
 	AllowServiceMetadataEditing bool
 	ShowOnboardingHints         bool
 	ShowIntegrationTypeBadges   bool
+	ShowServiceDetailInsights   bool
 	DeploymentRetentionDays     int
 	DefaultDashboardView        string
 	StatusSemanticsMode         string

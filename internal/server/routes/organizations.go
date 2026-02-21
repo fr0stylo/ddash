@@ -39,6 +39,10 @@ func (v *ViewRoutes) currentOrganizationID(c echo.Context) (int64, error) {
 	if !ok || userID <= 0 {
 		return 0, services.ErrOrganizationAccessDenied
 	}
+	userID, err := v.ensureAuthUserRecord(c, userID)
+	if err != nil {
+		return 0, err
+	}
 	activeID, _ := GetActiveOrganizationID(c)
 	org, err := v.orgs.GetActiveOrDefaultOrganizationForUser(ctx, userID, activeID)
 	if err != nil {

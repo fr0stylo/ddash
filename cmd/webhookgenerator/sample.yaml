@@ -1,6 +1,6 @@
-base_url: https://ddash.maumevicius.cloud/
-token: bb2c736fbc9528c343385fb864694030
-secret: 47b8caef965c37ca4971aee4fb831648dbcdc3f2e52c34e7
+base_url: http://localhost:8080
+token: 8c09139c1296bd7cb9086bffc8a25d3b
+secret: e6f5c3a8f8ed8a3293e06bf0ebf4f183f1a64fbb992bba40
 
 services:
   - payments-api

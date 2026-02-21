@@ -203,7 +203,7 @@ func TestHandleOrganizationMemberAddAddsMembership(t *testing.T) {
 	e.Renderer = &renderer.Renderer{}
 
 	store := &orgRouteStoreFake{org: ports.Organization{ID: 1, Name: "org-a", Enabled: true}, roleByUserID: map[int64]string{10: "owner"}, lookupUser: ports.User{ID: 22}}
-	v := NewViewRoutes(store, nil)
+	v := NewViewRoutes(store, nil, ViewExternalConfig{})
 
 	form := url.Values{}
 	form.Set("identity", "target@example.com")
@@ -232,7 +232,7 @@ func TestHandleOrganizationMemberRoleUpdatesMembership(t *testing.T) {
 		org:          ports.Organization{ID: 1, Name: "org-a", Enabled: true},
 		roleByUserID: map[int64]string{10: "admin", 22: "member"},
 	}
-	v := NewViewRoutes(store, nil)
+	v := NewViewRoutes(store, nil, ViewExternalConfig{})
 
 	form := url.Values{}
 	form.Set("userID", "22")
@@ -261,7 +261,7 @@ func TestHandleOrganizationMemberRemoveDeletesMembership(t *testing.T) {
 		org:          ports.Organization{ID: 1, Name: "org-a", Enabled: true},
 		roleByUserID: map[int64]string{10: "owner", 22: "member"},
 	}
-	v := NewViewRoutes(store, nil)
+	v := NewViewRoutes(store, nil, ViewExternalConfig{})
 
 	form := url.Values{}
 	form.Set("userID", "22")
@@ -287,7 +287,7 @@ func TestHandleWelcomeJoinOrganizationCreatesJoinRequest(t *testing.T) {
 		orgByJoinCode: ports.Organization{ID: 44, Name: "team-org", Enabled: true},
 		orgsByUser:    []ports.Organization{},
 	}
-	v := NewViewRoutes(store, nil)
+	v := NewViewRoutes(store, nil, ViewExternalConfig{})
 
 	form := url.Values{}
 	form.Set("joinCode", "abc123")
@@ -313,7 +313,7 @@ func TestHandleOrganizationJoinRequestApproveUpdatesMembership(t *testing.T) {
 		org:          ports.Organization{ID: 1, Name: "org-a", Enabled: true},
 		roleByUserID: map[int64]string{10: "admin"},
 	}
-	v := NewViewRoutes(store, nil)
+	v := NewViewRoutes(store, nil, ViewExternalConfig{})
 
 	form := url.Values{}
 	form.Set("userID", "23")

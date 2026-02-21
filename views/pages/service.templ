@@ -7,7 +7,7 @@ import (
 	"github.com/fr0stylo/ddash/views/components"
 )
 
-templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, showDeploymentHistory bool, allowServiceMetadataEditing bool, showIntegrationTypeBadges bool, csrfToken string) {
+templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, showDeploymentHistory bool, allowServiceMetadataEditing bool, showIntegrationTypeBadges bool, showServiceDetailInsights bool, csrfToken string) {
 		@base.Doc(service.Title) {
 			@base.AppHeader(service.Title, service.Description) {
 				if showMetadataBadges && service.MissingMetadata > 0 {
@@ -46,6 +46,33 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 						}
 					}`, components.ServiceFieldsJSON(service.MetadataFields), csrfToken, service.MetadataSaveURL) }
 				>
+					if showServiceDetailInsights {
+					@components.Card("Delivery insights") {
+						<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+							<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+								<div class="text-xs uppercase tracking-wide text-gray-500">Current status</div>
+								<div class="mt-1 font-semibold text-gray-900">{ service.LastStatus }</div>
+								<div class="mt-1 text-xs text-gray-500">drift { fmt.Sprint(service.DriftCount) } · failed streak { fmt.Sprint(service.FailedStreak) }</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+								<div class="text-xs uppercase tracking-wide text-gray-500">Success 30d</div>
+								<div class="mt-1 font-semibold text-gray-900">{ fmt.Sprint(service.Success30d) }</div>
+								<div class="mt-1 text-xs text-gray-500">deploys marked successful</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+								<div class="text-xs uppercase tracking-wide text-gray-500">Failures + rollbacks 30d</div>
+								<div class="mt-1 font-semibold text-gray-900">{ fmt.Sprint(service.Failures30d + service.Rollbacks30d) }</div>
+								<div class="mt-1 text-xs text-gray-500">failures { fmt.Sprint(service.Failures30d) } · rollbacks { fmt.Sprint(service.Rollbacks30d) }</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+								<div class="text-xs uppercase tracking-wide text-gray-500">Change failure rate 30d</div>
+								<div class="mt-1 font-semibold text-gray-900">{ service.ChangeFailureRate }</div>
+								<div class="mt-1 text-xs text-gray-500">service delivery risk ratio</div>
+							</div>
+						</div>
+					}
+					}
+
 					<div
 						class="fixed right-6 top-6 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-lg"
 						x-show="metadataToast"
@@ -173,6 +200,28 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 										<div class="text-xs text-gray-500">{ record.ChangeLog }</div>
 										if record.PreviousRef != "" {
 											<div class="text-[11px] font-mono text-gray-400">from { record.PreviousRef }</div>
+										}
+									</div>
+								}
+							</div>
+						}
+						}
+
+						if showServiceDetailInsights {
+						@components.Card("Recent risk and change links") {
+							<div class="space-y-2">
+								if len(service.RiskEvents) == 0 {
+									<div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">No recent risk/change links found.</div>
+								}
+								for _, event := range service.RiskEvents {
+									<div class="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
+										<div class="font-medium text-gray-900">{ event.When } · { event.Environment }</div>
+										<div class="mt-1 text-xs text-gray-500">artifact { event.Artifact } · chain { event.ChainID }</div>
+										if event.RunURL != "" {
+											<a class="mt-1 inline-block text-xs text-gray-700 underline-offset-4 hover:underline" href={ event.RunURL } target="_blank" rel="noreferrer">pipeline run { event.PipelineRunID }</a>
+										}
+										if event.ActorName != "" {
+											<div class="mt-1 text-xs text-gray-500">actor { event.ActorName }</div>
 										}
 									</div>
 								}

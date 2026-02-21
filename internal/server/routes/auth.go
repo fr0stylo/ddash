@@ -16,6 +16,7 @@ import (
 
 	"github.com/fr0stylo/ddash/internal/app/ports"
 	appservices "github.com/fr0stylo/ddash/internal/app/services"
+	"github.com/fr0stylo/ddash/internal/observability"
 	"github.com/fr0stylo/ddash/views/pages"
 )
 
@@ -102,6 +103,9 @@ func RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		if !ok {
 			return c.Redirect(http.StatusFound, "/login")
 		}
+		orgID, _ := GetActiveOrganizationID(c)
+		ctx := observability.WithRequestIdentity(c.Request().Context(), user.ID, orgID)
+		c.SetRequest(c.Request().WithContext(ctx))
 		c.Set("authUser", user)
 		return next(c)
 	}

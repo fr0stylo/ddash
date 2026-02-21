@@ -89,6 +89,17 @@ type DeploymentRecord struct {
 	DeployedAgo string
 }
 
+// ServiceRiskEvent is one recent risk/audit event link.
+type ServiceRiskEvent struct {
+	When          string
+	Environment   string
+	Artifact      string
+	ChainID       string
+	PipelineRunID string
+	RunURL        string
+	ActorName     string
+}
+
 // ServiceDetail is composed service details page view model.
 type ServiceDetail struct {
 	Title             string
@@ -100,4 +111,12 @@ type ServiceDetail struct {
 	OrgRequiredFields []MetadataField
 	Environments      []ServiceEnvironment
 	DeploymentHistory []DeploymentRecord
+	LastStatus        string
+	DriftCount        int
+	FailedStreak      int
+	Success30d        int
+	Failures30d       int
+	Rollbacks30d      int
+	ChangeFailureRate string
+	RiskEvents        []ServiceRiskEvent
 }

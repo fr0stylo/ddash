@@ -34,6 +34,56 @@ func TestBuildEventBodySupportsServiceTypes(t *testing.T) {
 	}
 }
 
+func TestBuildEventBodySupportsEnvironmentTypes(t *testing.T) {
+	types := []string{"environment.created", "environment.modified", "environment.deleted"}
+	for _, typ := range types {
+		t.Run(typ, func(t *testing.T) {
+			body, resolved, err := BuildEventBody(Event{
+				Type:        typ,
+				Source:      "ci/test",
+				Environment: "staging",
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !strings.HasPrefix(resolved, "dev.cdevents.environment.") {
+				t.Fatalf("unexpected resolved type: %s", resolved)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(body, &payload); err != nil {
+				t.Fatalf("invalid json body: %v", err)
+			}
+		})
+	}
+}
+
+func TestBuildEventBodySupportsAcceptedCustomPrefixes(t *testing.T) {
+	body, resolved, err := BuildEventBody(Event{
+		Type:        "dev.cdevents.pipeline.run.started.0.3.0",
+		Source:      "ci/test",
+		Service:     "payments",
+		Environment: "staging",
+		ActorName:   "build-bot",
+		PipelineRun: "run-123",
+		PipelineURL: "https://ci.example.local/runs/123",
+		ChainID:     "chain-123",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resolved != "dev.cdevents.pipeline.run.started.0.3.0" {
+		t.Fatalf("unexpected resolved type: %s", resolved)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		t.Fatalf("invalid json body: %v", err)
+	}
+	contextNode := payload["context"].(map[string]any)
+	if contextNode["chainId"] != "chain-123" {
+		t.Fatalf("expected chainId in payload")
+	}
+}
+
 func TestClientPublishSendsSignedRequest(t *testing.T) {
 	var gotAuth string
 	var gotSignature string

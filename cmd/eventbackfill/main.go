@@ -14,15 +14,25 @@ import (
 
 	cdeventsapi "github.com/cdevents/sdk-go/pkg/api"
 	cdeventsv05 "github.com/cdevents/sdk-go/pkg/api/v05"
+	"github.com/joho/godotenv"
 
+	"github.com/fr0stylo/ddash/internal/config"
 	"github.com/fr0stylo/ddash/internal/db"
 	"github.com/fr0stylo/ddash/internal/db/queries"
 )
 
 func main() {
 	ctx := context.Background()
+	if err := godotenv.Load(); err != nil {
+		log.Printf("no .env file loaded: %v", err)
+	}
 
-	dbPath := flag.String("db", "", "database path without .sqlite suffix (defaults to DDASH_DB_PATH or data/default)")
+	cfg, err := config.LoadForTool()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
+	dbPath := flag.String("db", cfg.Database.Path, "database path without .sqlite suffix")
 	dryRun := flag.Bool("dry-run", false, "build and validate events without writing to event_store")
 	source := flag.String("source", "ddash/backfill", "CDEvent source used for backfilled events")
 	flag.Parse()
@@ -76,6 +86,7 @@ func main() {
 				EventType:      event.GetType().String(),
 				EventSource:    event.GetSource(),
 				EventTimestamp: event.GetTimestamp().UTC().Format(time.RFC3339Nano),
+				EventTsMs:      event.GetTimestamp().UTC().UnixMilli(),
 				SubjectID:      event.GetSubjectId(),
 				SubjectSource:  sql.NullString{String: event.GetSubjectSource(), Valid: strings.TrimSpace(event.GetSubjectSource()) != ""},
 				SubjectType:    event.GetType().Subject,

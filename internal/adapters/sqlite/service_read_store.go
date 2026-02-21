@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +43,15 @@ func (s *Store) ListDeployments(ctx context.Context, organizationID int64, env, 
 		return nil, err
 	}
 	return mapDeploymentsRows(rows), nil
+}
+
+// GetOrganizationRenderVersion returns a coarse version for rendered fragments.
+func (s *Store) GetOrganizationRenderVersion(ctx context.Context, organizationID int64) (int64, error) {
+	version, err := s.database.GetOrganizationRenderVersion(ctx, organizationID)
+	if err != nil {
+		return 0, err
+	}
+	return toInt64(version), nil
 }
 
 // GetServiceLatest returns latest known state for a service.
@@ -172,6 +183,73 @@ func (s *Store) ListDiscoveredEnvironments(ctx context.Context, organizationID i
 	return s.database.ListDistinctServiceEnvironmentsFromEvents(ctx, organizationID)
 }
 
+// GetServiceCurrentState returns latest projected state values.
+func (s *Store) GetServiceCurrentState(ctx context.Context, organizationID int64, service string) (ports.ServiceCurrentState, error) {
+	row, err := s.database.GetServiceCurrentState(ctx, queries.GetServiceCurrentStateParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.ServiceCurrentState{}, nil
+		}
+		return ports.ServiceCurrentState{}, err
+	}
+	return ports.ServiceCurrentState{
+		LastStatus:    strings.TrimSpace(row.LatestStatus),
+		LastEventTSMs: row.LatestEventTsMs,
+		DriftCount:    int(row.DriftCount),
+		FailedStreak:  int(row.FailedStreak),
+	}, nil
+}
+
+// GetServiceDeliveryStats30d returns 30-day delivery counters.
+func (s *Store) GetServiceDeliveryStats30d(ctx context.Context, organizationID int64, service string) (ports.ServiceDeliveryStats, error) {
+	row, err := s.database.GetServiceDeliveryStats30d(ctx, queries.GetServiceDeliveryStats30dParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.ServiceDeliveryStats{}, nil
+		}
+		return ports.ServiceDeliveryStats{}, err
+	}
+	return ports.ServiceDeliveryStats{
+		Success30d:   int(toInt64(row.DeploySuccessCount)),
+		Failures30d:  int(toInt64(row.DeployFailureCount)),
+		Rollbacks30d: int(toInt64(row.RollbackCount)),
+	}, nil
+}
+
+// ListServiceChangeLinksRecent returns recent risk/audit links.
+func (s *Store) ListServiceChangeLinksRecent(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.ServiceChangeLink, error) {
+	rows, err := s.database.ListServiceChangeLinksRecent(ctx, queries.ListServiceChangeLinksRecentParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+		Limit:          limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ports.ServiceChangeLink, 0, len(rows))
+	for _, row := range rows {
+		item := ports.ServiceChangeLink{
+			EventTSMs:     row.EventTsMs,
+			Environment:   strings.TrimSpace(row.Environment),
+			ArtifactID:    strings.TrimSpace(row.ArtifactID),
+			PipelineRunID: strings.TrimSpace(row.PipelineRunID),
+			RunURL:        strings.TrimSpace(row.RunUrl),
+			ActorName:     strings.TrimSpace(row.ActorName),
+		}
+		if row.ChainID.Valid {
+			item.ChainID = strings.TrimSpace(row.ChainID.String)
+		}
+		out = append(out, item)
+	}
+	return out, nil
+}
+
 func mapOrganization(org queries.Organization) ports.Organization {
 	joinCode := ""
 	if org.JoinCode.Valid {
@@ -274,6 +352,42 @@ func toString(value interface{}) string {
 		return string(v)
 	default:
 		return strings.TrimSpace(fmt.Sprint(v))
+	}
+}
+
+func toInt64(value interface{}) int64 {
+	switch v := value.(type) {
+	case nil:
+		return 0
+	case int64:
+		return v
+	case int32:
+		return int64(v)
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	case float32:
+		return int64(v)
+	case []byte:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(string(v)), 10, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		text := strings.TrimSpace(fmt.Sprint(v))
+		parsed, err := strconv.ParseInt(text, 10, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
 	}
 }
 

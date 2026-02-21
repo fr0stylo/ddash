@@ -49,6 +49,7 @@ type EventStore struct {
 	ChainID        sql.NullString
 	RawEventJson   string
 	IngestedAt     time.Time
+	EventTsMs      int64
 }
 
 type Organization struct {
@@ -147,6 +148,59 @@ type Service struct {
 	EndpointUrl     sql.NullString
 	CreatedAt       sql.NullTime
 	UpdatedAt       sql.NullTime
+}
+
+type ServiceChangeLink struct {
+	OrganizationID int64
+	ServiceName    string
+	EventSeq       int64
+	EventTsMs      int64
+	ChainID        sql.NullString
+	Environment    string
+	ArtifactID     string
+	Repo           string
+	CommitSha      string
+	PrNumber       string
+	PipelineRunID  string
+	RunUrl         string
+	ActorName      string
+	CreatedAt      time.Time
+}
+
+type ServiceCurrentState struct {
+	OrganizationID    int64
+	ServiceName       string
+	LatestEventSeq    int64
+	LatestEventType   string
+	LatestEventTsMs   int64
+	LatestStatus      string
+	LatestArtifactID  string
+	LatestEnvironment string
+	DriftCount        int64
+	FailedStreak      int64
+	UpdatedAt         time.Time
+}
+
+type ServiceDeliveryStatsDaily struct {
+	OrganizationID     int64
+	ServiceName        string
+	DayUtc             string
+	DeploySuccessCount int64
+	DeployFailureCount int64
+	RollbackCount      int64
+	UpdatedAt          time.Time
+}
+
+type ServiceEnvState struct {
+	OrganizationID   int64
+	ServiceName      string
+	Environment      string
+	LatestEventSeq   int64
+	LatestEventType  string
+	LatestEventTsMs  int64
+	LatestStatus     string
+	LatestArtifactID string
+	UpdatedAt        time.Time
 }
 
 type ServiceField struct {

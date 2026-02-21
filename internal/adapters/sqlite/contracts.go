@@ -39,9 +39,13 @@ type storeDatabase interface {
 	ListServiceInstancesFromEvents(ctx context.Context, organizationID int64) ([]queries.ListServiceInstancesFromEventsRow, error)
 	ListServiceInstancesByEnvFromEvents(ctx context.Context, params queries.ListServiceInstancesByEnvFromEventsParams) ([]queries.ListServiceInstancesByEnvFromEventsRow, error)
 	ListDeploymentsFromEvents(ctx context.Context, params queries.ListDeploymentsFromEventsParams) ([]queries.ListDeploymentsFromEventsRow, error)
+	GetOrganizationRenderVersion(ctx context.Context, orgID int64) (interface{}, error)
 	GetServiceLatestFromEvents(ctx context.Context, params queries.GetServiceLatestFromEventsParams) (queries.GetServiceLatestFromEventsRow, error)
 	ListServiceEnvironmentsFromEvents(ctx context.Context, params queries.ListServiceEnvironmentsFromEventsParams) ([]queries.ListServiceEnvironmentsFromEventsRow, error)
 	ListDeploymentHistoryByServiceFromEvents(ctx context.Context, params queries.ListDeploymentHistoryByServiceFromEventsParams) ([]queries.ListDeploymentHistoryByServiceFromEventsRow, error)
+	GetServiceCurrentState(ctx context.Context, params queries.GetServiceCurrentStateParams) (queries.GetServiceCurrentStateRow, error)
+	GetServiceDeliveryStats30d(ctx context.Context, params queries.GetServiceDeliveryStats30dParams) (queries.GetServiceDeliveryStats30dRow, error)
+	ListServiceChangeLinksRecent(ctx context.Context, params queries.ListServiceChangeLinksRecentParams) ([]queries.ListServiceChangeLinksRecentRow, error)
 
 	ListServiceMetadataByService(ctx context.Context, params queries.ListServiceMetadataByServiceParams) ([]queries.ListServiceMetadataByServiceRow, error)
 	ListServiceMetadataByOrganization(ctx context.Context, organizationID int64) ([]queries.ListServiceMetadataByOrganizationRow, error)

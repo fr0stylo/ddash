@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 
 	"github.com/fr0stylo/ddash/internal/app/ports"
+	appservices "github.com/fr0stylo/ddash/internal/app/services"
 	customwebhook "github.com/fr0stylo/ddash/internal/webhooks/custom"
 )
 
@@ -15,9 +16,9 @@ type WebhookRoutes struct {
 }
 
 // NewWebhookRoutes constructs webhook routes.
-func NewWebhookRoutes(storeFactory ports.IngestionStoreFactory) *WebhookRoutes {
+func NewWebhookRoutes(storeFactory ports.IngestionStoreFactory, batchConfig appservices.IngestBatchConfig) *WebhookRoutes {
 	return &WebhookRoutes{
-		custom: customwebhook.NewHandler(storeFactory),
+		custom: customwebhook.NewHandler(storeFactory, batchConfig),
 	}
 }
 

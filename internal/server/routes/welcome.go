@@ -59,6 +59,10 @@ func (v *ViewRoutes) handleWelcomeCreateOrganization(c echo.Context) error {
 	if !ok || userID <= 0 {
 		return c.Redirect(http.StatusFound, "/login")
 	}
+	userID, err := v.ensureAuthUserRecord(c, userID)
+	if err != nil {
+		return c.Redirect(http.StatusFound, welcomeRedirectURL("Unable to validate user profile", "error"))
+	}
 	name := strings.TrimSpace(c.FormValue("name"))
 	if name == "" {
 		user, _ := GetAuthUser(c)
@@ -70,6 +74,7 @@ func (v *ViewRoutes) handleWelcomeCreateOrganization(c echo.Context) error {
 	}
 	org, err := v.orgs.CreateOrganization(ctx, userID, name)
 	if err != nil {
+		c.Logger().Errorf("failed to create organization for user %d: %v", userID, err)
 		return c.Redirect(http.StatusFound, welcomeRedirectURL("Unable to create organization", "error"))
 	}
 	if err := SetActiveOrganizationID(c, org.ID); err != nil {
@@ -83,6 +88,10 @@ func (v *ViewRoutes) handleWelcomeJoinOrganization(c echo.Context) error {
 	userID, ok := GetAuthUserID(c)
 	if !ok || userID <= 0 {
 		return c.Redirect(http.StatusFound, "/login")
+	}
+	userID, err := v.ensureAuthUserRecord(c, userID)
+	if err != nil {
+		return c.Redirect(http.StatusFound, welcomeRedirectURL("Unable to validate user profile", "error"))
 	}
 	joinCode := strings.TrimSpace(c.FormValue("joinCode"))
 	if joinCode == "" {

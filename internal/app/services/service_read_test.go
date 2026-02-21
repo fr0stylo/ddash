@@ -12,6 +12,7 @@ import (
 type fakeServiceReadStore struct {
 	services            []domain.Service
 	deployments         []domain.DeploymentRow
+	renderVersion       int64
 	latest              ports.ServiceLatest
 	serviceEnvs         []domain.ServiceEnvironment
 	history             []domain.DeploymentRecord
@@ -38,6 +39,13 @@ func (f *fakeServiceReadStore) ListDeployments(_ context.Context, organizationID
 	f.deploymentInputEnv = env
 	f.deploymentInputSvc = service
 	return f.deployments, nil
+}
+
+func (f *fakeServiceReadStore) GetOrganizationRenderVersion(context.Context, int64) (int64, error) {
+	if f.renderVersion == 0 {
+		return 1, nil
+	}
+	return f.renderVersion, nil
 }
 
 func (f *fakeServiceReadStore) GetServiceLatest(context.Context, int64, string) (ports.ServiceLatest, error) {
@@ -72,6 +80,18 @@ func (f *fakeServiceReadStore) ListDiscoveredEnvironments(context.Context, int64
 	return f.discoveredEnvs, nil
 }
 
+func (f *fakeServiceReadStore) GetServiceCurrentState(context.Context, int64, string) (ports.ServiceCurrentState, error) {
+	return ports.ServiceCurrentState{}, nil
+}
+
+func (f *fakeServiceReadStore) GetServiceDeliveryStats30d(context.Context, int64, string) (ports.ServiceDeliveryStats, error) {
+	return ports.ServiceDeliveryStats{}, nil
+}
+
+func (f *fakeServiceReadStore) ListServiceChangeLinksRecent(context.Context, int64, string, int64) ([]ports.ServiceChangeLink, error) {
+	return nil, nil
+}
+
 func TestGetServicesByEnv_AppliesMetadata(t *testing.T) {
 	store := &fakeServiceReadStore{
 		services: []domain.Service{
@@ -89,7 +109,7 @@ func TestGetServicesByEnv_AppliesMetadata(t *testing.T) {
 		},
 	}
 
-	svc := NewServiceReadService(store)
+	svc := NewServiceReadServiceFromStore(store)
 	rows, err := svc.GetServicesByEnv(context.Background(), 101, "prod")
 	if err != nil {
 		t.Fatalf("GetServicesByEnv returned error: %v", err)
@@ -135,7 +155,7 @@ func TestGetDeployments_AppliesMetadataAndReturnsOptions(t *testing.T) {
 		},
 	}
 
-	svc := NewServiceReadService(store)
+	svc := NewServiceReadServiceFromStore(store)
 	rows, options, err := svc.GetDeployments(context.Background(), 202, "dev", "svc-a")
 	if err != nil {
 		t.Fatalf("GetDeployments returned error: %v", err)
@@ -178,7 +198,7 @@ func TestGetServiceDetail_ComposesMetadataAndEnvironmentOrder(t *testing.T) {
 		history:       []domain.DeploymentRecord{{Ref: "abc123"}},
 	}
 
-	svc := NewServiceReadService(store)
+	svc := NewServiceReadServiceFromStore(store)
 	detail, err := svc.GetServiceDetail(context.Background(), 303, "svc/a")
 	if err != nil {
 		t.Fatalf("GetServiceDetail returned error: %v", err)

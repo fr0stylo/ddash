@@ -10,8 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	cdeventsapi "github.com/cdevents/sdk-go/pkg/api"
@@ -21,6 +24,7 @@ import (
 	cehttp "github.com/cloudevents/sdk-go/v2/protocol/http"
 
 	"github.com/fr0stylo/ddash/internal/app/ports"
+	"github.com/fr0stylo/ddash/internal/observability"
 )
 
 var (
@@ -36,6 +40,8 @@ var (
 	ErrInvalidSchema = errors.New("invalid schema")
 	// ErrUnsupportedType indicates event type is not currently accepted.
 	ErrUnsupportedType = errors.New("unsupported event type")
+	// ErrIngestBusy indicates ingestion queue saturation.
+	ErrIngestBusy = errors.New("ingestion busy")
 )
 
 const bearerPrefix = "Bearer "
@@ -51,9 +57,23 @@ var allowedDeliveryTypes = map[string]struct{}{
 	cdeventsv05.ServicePublishedEventType.String():    {},
 }
 
+var allowedTypePrefixes = []string{
+	"dev.cdevents.pipeline.",
+	"dev.cdevents.change.",
+	"dev.cdevents.artifact.",
+	"dev.cdevents.incident.",
+}
+
 // EventIngestService validates and appends CDEvents to the event store.
 type EventIngestService struct {
 	storeFactory ports.IngestionStoreFactory
+	batcher      *ingestBatcher
+}
+
+type IngestBatchConfig struct {
+	Enabled       bool
+	Size          int
+	FlushInterval time.Duration
 }
 
 // IngestErrorKind classifies ingestion failures for transport-specific mapping.
@@ -74,6 +94,8 @@ const (
 	IngestErrorInvalidSchema IngestErrorKind = "invalid_schema"
 	// IngestErrorUnsupportedType indicates event type is not accepted.
 	IngestErrorUnsupportedType IngestErrorKind = "unsupported_type"
+	// IngestErrorBusy indicates ingestion queue saturation.
+	IngestErrorBusy IngestErrorKind = "busy"
 )
 
 // IngestCommand is transport-agnostic webhook ingestion input.
@@ -86,7 +108,30 @@ type IngestCommand struct {
 
 // NewEventIngestService constructs an ingestion service.
 func NewEventIngestService(storeFactory ports.IngestionStoreFactory) *EventIngestService {
-	return &EventIngestService{storeFactory: storeFactory}
+	return NewEventIngestServiceWithConfig(storeFactory, IngestBatchConfig{
+		Enabled:       true,
+		Size:          100,
+		FlushInterval: 50 * time.Millisecond,
+	})
+}
+
+func NewEventIngestServiceWithConfig(storeFactory ports.IngestionStoreFactory, batchCfg IngestBatchConfig) *EventIngestService {
+	service := &EventIngestService{storeFactory: storeFactory}
+	if batchCfg.Enabled {
+		size := batchCfg.Size
+		if size <= 0 {
+			size = 100
+		}
+		if size > 2000 {
+			size = 2000
+		}
+		interval := batchCfg.FlushInterval
+		if interval <= 0 {
+			interval = 50 * time.Millisecond
+		}
+		service.batcher = newIngestBatcher(storeFactory, size, interval)
+	}
+	return service
 }
 
 // ClassifyIngestError classifies a returned ingestion error.
@@ -106,6 +151,8 @@ func ClassifyIngestError(err error) IngestErrorKind {
 		return IngestErrorInvalidSchema
 	case errors.Is(err, ErrUnsupportedType):
 		return IngestErrorUnsupportedType
+	case errors.Is(err, ErrIngestBusy):
+		return IngestErrorBusy
 	default:
 		return IngestErrorUnknown
 	}
@@ -118,16 +165,14 @@ func (s *EventIngestService) Ingest(ctx context.Context, cmd IngestCommand) erro
 		return ErrMissingAuthToken
 	}
 
-	store, org, err := s.lookupOrganization(ctx, token)
+	org, err := s.lookupOrganization(ctx, token)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ErrInvalidAuthToken
 		}
 		return err
 	}
-	defer func() {
-		_ = store.Close()
-	}()
+	ctx = observability.WithRequestIdentity(ctx, 0, org.ID)
 
 	if !validSignature(cmd.Body, org.WebhookSecret, cmd.SignatureHeader) {
 		return ErrInvalidSignature
@@ -137,13 +182,14 @@ func (s *EventIngestService) Ingest(ctx context.Context, cmd IngestCommand) erro
 	if err != nil {
 		return ErrInvalidPayload
 	}
-	if err := cdeventsapi.Validate(event); err != nil {
-		return ErrInvalidSchema
-	}
-
 	eventType := event.GetType().String()
-	if _, ok := allowedDeliveryTypes[eventType]; !ok {
+	if !isSupportedEventType(eventType) {
 		return ErrUnsupportedType
+	}
+	if requiresStrictSchemaValidation(eventType) {
+		if err := cdeventsapi.Validate(event); err != nil {
+			return ErrInvalidSchema
+		}
 	}
 
 	subjectType := strings.TrimSpace(event.GetType().Subject)
@@ -175,37 +221,190 @@ func (s *EventIngestService) Ingest(ctx context.Context, cmd IngestCommand) erro
 		subjectSource = &value
 	}
 
-	return store.AppendEvent(ctx, ports.EventRecord{
+	record := ports.EventRecord{
 		OrganizationID: org.ID,
 		EventID:        event.GetId(),
 		EventType:      eventType,
 		EventSource:    event.GetSource(),
 		EventTimestamp: event.GetTimestamp().UTC().Format(time.RFC3339Nano),
+		EventTSMs:      event.GetTimestamp().UTC().UnixMilli(),
 		SubjectID:      event.GetSubjectId(),
 		SubjectSource:  subjectSource,
 		SubjectType:    subjectType,
 		ChainID:        chainID,
 		RawEventJSON:   raw,
-	})
-}
+	}
 
-func (s *EventIngestService) lookupOrganization(ctx context.Context, token string) (ports.IngestionStore, ports.Organization, error) {
+	if s.batcher != nil {
+		return s.batcher.append(ctx, record)
+	}
+
 	store, err := s.storeFactory.Open()
 	if err != nil {
-		return nil, ports.Organization{}, err
+		return err
 	}
+	defer func() {
+		_ = store.Close()
+	}()
+	return store.AppendEvent(ctx, record)
+}
+
+func isSupportedEventType(eventType string) bool {
+	eventType = strings.TrimSpace(eventType)
+	if eventType == "" {
+		return false
+	}
+	if _, ok := allowedDeliveryTypes[eventType]; ok {
+		return true
+	}
+	for _, prefix := range allowedTypePrefixes {
+		if strings.HasPrefix(eventType, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func requiresStrictSchemaValidation(eventType string) bool {
+	_, ok := allowedDeliveryTypes[strings.TrimSpace(eventType)]
+	return ok
+}
+
+func (s *EventIngestService) lookupOrganization(ctx context.Context, token string) (ports.Organization, error) {
+	store, err := s.storeFactory.Open()
+	if err != nil {
+		return ports.Organization{}, err
+	}
+	defer func() {
+		_ = store.Close()
+	}()
 
 	org, err := store.GetOrganizationByAuthToken(ctx, token)
 	if err != nil {
-		_ = store.Close()
-		return nil, ports.Organization{}, err
+		return ports.Organization{}, err
 	}
 	if !org.Enabled {
-		_ = store.Close()
-		return nil, ports.Organization{}, sql.ErrNoRows
+		return ports.Organization{}, sql.ErrNoRows
 	}
 
-	return store, org, nil
+	return org, nil
+}
+
+type ingestBatcher struct {
+	storeFactory  ports.IngestionStoreFactory
+	batchSize     int
+	flushInterval time.Duration
+	queue         chan ingestBatchRequest
+	startOnce     sync.Once
+	accepted      atomic.Int64
+	flushBatches  atomic.Int64
+	flushEvents   atomic.Int64
+	flushErrors   atomic.Int64
+}
+
+type ingestBatchRequest struct {
+	ctx    context.Context
+	event  ports.EventRecord
+	result chan error
+}
+
+func newIngestBatcher(storeFactory ports.IngestionStoreFactory, batchSize int, flushInterval time.Duration) *ingestBatcher {
+	b := &ingestBatcher{
+		storeFactory:  storeFactory,
+		batchSize:     batchSize,
+		flushInterval: flushInterval,
+		queue:         make(chan ingestBatchRequest, batchSize*8),
+	}
+	b.startOnce.Do(func() {
+		go b.run()
+	})
+	return b
+}
+
+func (b *ingestBatcher) append(ctx context.Context, event ports.EventRecord) error {
+	result := make(chan error, 1)
+	request := ingestBatchRequest{ctx: ctx, event: event, result: result}
+
+	select {
+	case b.queue <- request:
+		b.accepted.Add(1)
+	default:
+		return ErrIngestBusy
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (b *ingestBatcher) run() {
+	ticker := time.NewTicker(b.flushInterval)
+	defer ticker.Stop()
+	statsTicker := time.NewTicker(30 * time.Second)
+	defer statsTicker.Stop()
+
+	batch := make([]ingestBatchRequest, 0, b.batchSize)
+	for {
+		select {
+		case request := <-b.queue:
+			batch = append(batch, request)
+			if len(batch) >= b.batchSize {
+				b.flush(batch)
+				batch = batch[:0]
+			}
+		case <-ticker.C:
+			if len(batch) > 0 {
+				b.flush(batch)
+				batch = batch[:0]
+			}
+		case <-statsTicker.C:
+			slog.Info("ingest_batcher_stats",
+				"queue_len", len(b.queue),
+				"queue_cap", cap(b.queue),
+				"accepted", b.accepted.Load(),
+				"flush_batches", b.flushBatches.Load(),
+				"flush_events", b.flushEvents.Load(),
+				"flush_errors", b.flushErrors.Load(),
+			)
+		}
+	}
+}
+
+func (b *ingestBatcher) flush(batch []ingestBatchRequest) {
+	store, err := b.storeFactory.Open()
+	if err != nil {
+		b.flushErrors.Add(1)
+		slog.Error("ingest_batch_open_failed", "error", err, "batch_size", len(batch))
+		for _, item := range batch {
+			item.result <- err
+		}
+		return
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	events := make([]ports.EventRecord, 0, len(batch))
+	for _, item := range batch {
+		events = append(events, item.event)
+	}
+
+	err = store.AppendEvents(context.Background(), events)
+	if err != nil {
+		b.flushErrors.Add(1)
+		slog.Error("ingest_batch_flush_failed", "error", err, "batch_size", len(events))
+	} else {
+		b.flushBatches.Add(1)
+		b.flushEvents.Add(int64(len(events)))
+	}
+	for _, item := range batch {
+		item.result <- err
+	}
 }
 
 func parseIncomingEvent(ctx context.Context, headers http.Header, body []byte) (cdeventsapi.CDEventV04, error) {

@@ -22,6 +22,7 @@ const (
 	featureAllowServiceMetadataEditing = "allow_service_metadata_editing"
 	featureShowOnboardingHints         = "show_onboarding_hints"
 	featureShowIntegrationTypeBadges   = "show_integration_type_badges"
+	featureShowServiceDetailInsights   = "show_service_detail_insights"
 
 	prefDeploymentRetentionDays = "deployment_retention_days"
 	prefDefaultDashboardView    = "default_dashboard_view"
@@ -387,6 +388,7 @@ func (s *Store) UpdateOrganizationSettings(ctx context.Context, organizationID i
 			{featureAllowServiceMetadataEditing, params.AllowServiceMetadataEditing},
 			{featureShowOnboardingHints, params.ShowOnboardingHints},
 			{featureShowIntegrationTypeBadges, params.ShowIntegrationTypeBadges},
+			{featureShowServiceDetailInsights, params.ShowServiceDetailInsights},
 		}
 		for _, feature := range features {
 			if err := q.UpsertOrganizationFeature(ctx, queries.UpsertOrganizationFeatureParams{

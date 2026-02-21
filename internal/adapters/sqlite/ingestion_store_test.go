@@ -169,3 +169,68 @@ func TestIngestionStoreEventIdempotencyIsOrganizationScoped(t *testing.T) {
 		t.Fatalf("expected 1 event for org b, got %d", len(rowsB))
 	}
 }
+
+func TestIngestionStoreAppendEventsBatch(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "ingestion-batch")
+	database, err := db.New(dbPath)
+	if err != nil {
+		t.Fatalf("open test db: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+
+	org, err := database.CreateOrganization(ctx, queries.CreateOrganizationParams{
+		Name:          "batch-org",
+		AuthToken:     "batch-token",
+		WebhookSecret: "batch-secret",
+		Enabled:       1,
+	})
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+
+	factory := NewSharedIngestionStoreFactory(database)
+	store, err := factory.Open()
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+
+	events := []ports.EventRecord{
+		{
+			OrganizationID: org.ID,
+			EventID:        "batch-1",
+			EventType:      "dev.cdevents.service.deployed.0.3.0",
+			EventSource:    "tests/source",
+			EventTimestamp: "2026-02-21T10:00:00Z",
+			EventTSMs:      1761069600000,
+			SubjectID:      "service/orders",
+			SubjectType:    "service",
+			RawEventJSON:   `{"subject":{"content":{"environment":{"id":"staging"},"artifactId":"pkg:generic/orders@v1"}}}`,
+		},
+		{
+			OrganizationID: org.ID,
+			EventID:        "batch-2",
+			EventType:      "dev.cdevents.service.upgraded.0.3.0",
+			EventSource:    "tests/source",
+			EventTimestamp: "2026-02-21T10:01:00Z",
+			EventTSMs:      1761069660000,
+			SubjectID:      "service/orders",
+			SubjectType:    "service",
+			RawEventJSON:   `{"subject":{"content":{"environment":{"id":"staging"},"artifactId":"pkg:generic/orders@v2"}}}`,
+		},
+	}
+
+	if err := store.AppendEvents(ctx, events); err != nil {
+		t.Fatalf("append batch: %v", err)
+	}
+
+	count, err := database.CountEventStore(ctx)
+	if err != nil {
+		t.Fatalf("count event store: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected 2 events, got %d", count)
+	}
+}

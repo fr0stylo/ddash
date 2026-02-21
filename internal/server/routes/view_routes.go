@@ -4,28 +4,40 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
 	"github.com/fr0stylo/ddash/internal/app/ports"
 	appservices "github.com/fr0stylo/ddash/internal/app/services"
+	"github.com/fr0stylo/ddash/internal/renderer"
 )
 
 // ViewRoutes wires view routes with database access.
 type ViewRoutes struct {
-	read     *appservices.ServiceReadService
-	metadata *appservices.MetadataService
-	config   *appservices.OrganizationConfigService
-	orgs     *appservices.OrganizationManagementService
+	read      *appservices.ServiceReadService
+	metadata  *appservices.MetadataService
+	config    *appservices.OrganizationConfigService
+	orgs      *appservices.OrganizationManagementService
+	github    *GitHubIngestorClient
+	fragments *renderer.FragmentRenderer
+}
+
+type ViewExternalConfig struct {
+	PublicURL           string
+	GitHubIngestorURL   string
+	GitHubIngestorToken string
 }
 
 // NewViewRoutes constructs view routes.
-func NewViewRoutes(configStore ports.AppStore, readStore ports.ServiceReadStore) *ViewRoutes {
+func NewViewRoutes(configStore ports.AppStore, readStore ports.ServiceReadStore, external ViewExternalConfig) *ViewRoutes {
 	return &ViewRoutes{
-		read:     appservices.NewServiceReadService(readStore),
-		metadata: appservices.NewMetadataService(configStore),
-		config:   appservices.NewOrganizationConfigService(configStore),
-		orgs:     appservices.NewOrganizationManagementService(configStore),
+		read:      appservices.NewServiceReadServiceFromStore(readStore),
+		metadata:  appservices.NewMetadataService(configStore),
+		config:    appservices.NewOrganizationConfigService(configStore),
+		orgs:      appservices.NewOrganizationManagementService(configStore),
+		github:    NewGitHubIngestorClient(external.GitHubIngestorURL, external.GitHubIngestorToken, external.PublicURL),
+		fragments: renderer.NewFragmentRenderer(512, 5*time.Second),
 	}
 }
 
@@ -43,6 +55,9 @@ func (v *ViewRoutes) RegisterRoutes(s *echo.Echo) {
 	orgAuthed.POST("/s/:name/metadata", v.handleServiceMetadataUpdate)
 	orgAuthed.GET("/settings", v.handleSettings)
 	orgAuthed.POST("/settings", v.handleSettingsUpdate)
+	orgAuthed.GET("/settings/integrations/github", v.handleGitHubIntegration)
+	orgAuthed.POST("/settings/integrations/github/link", v.handleGitHubIntegrationLink)
+	orgAuthed.POST("/settings/integrations/github/delete", v.handleGitHubIntegrationDelete)
 	orgAuthed.GET("/organizations", v.handleOrganizations)
 	orgAuthed.GET("/organizations/current", v.handleOrganizationCurrent)
 	orgAuthed.POST("/organizations", v.handleOrganizationCreate)
@@ -58,12 +73,12 @@ func (v *ViewRoutes) RegisterRoutes(s *echo.Echo) {
 	orgAuthed.GET("/onboarding", v.handleOnboarding)
 
 	orgAuthed.GET("/deployments", v.handleDeployments)
-	orgAuthed.GET("/deployments/filter", v.handleDeploymentFilter)
+	orgAuthed.GET("/deployments/filter", v.handleDeploymentFilter, v.htmxFragmentCacheMiddleware("deployments-filter"))
 	orgAuthed.GET("/services/stream", v.handleServiceStream)
 
-	orgAuthed.GET("/services/grid", v.handleServiceGrid)
-	orgAuthed.GET("/services/table", v.handleServiceTable)
-	orgAuthed.GET("/services/filter", v.handleServiceFilter)
+	orgAuthed.GET("/services/grid", v.handleServiceGrid, v.htmxFragmentCacheMiddleware("services-grid"))
+	orgAuthed.GET("/services/table", v.handleServiceTable, v.htmxFragmentCacheMiddleware("services-table"))
+	orgAuthed.GET("/services/filter", v.handleServiceFilter, v.htmxFragmentCacheMiddleware("services-filter"))
 	orgAuthed.GET("/deployments/stream", v.handleDeploymentStream)
 }
 

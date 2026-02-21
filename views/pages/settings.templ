@@ -7,11 +7,14 @@ import (
 	"github.com/fr0stylo/ddash/views/components"
 )
 
-templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []string, authToken string, webhookSecret string, enabled bool, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, enableSSELiveUpdates bool, showDeploymentHistory bool, showMetadataFilters bool, strictMetadataEnforcement bool, maskSensitiveMetadataValues bool, allowServiceMetadataEditing bool, showOnboardingHints bool, showIntegrationTypeBadges bool, deploymentRetentionDays int, defaultDashboardView string, statusSemanticsMode string, csrfToken string) {
-	@base.Doc("DDash - Settings") {
-		@base.AppHeader("Settings", "Configure defaults every service must provide.") {
-			if showOnboardingHints {
-				<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/onboarding">
+templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []string, authToken string, webhookSecret string, enabled bool, showSyncStatus bool, showMetadataBadges bool, showEnvironmentColumn bool, enableSSELiveUpdates bool, showDeploymentHistory bool, showMetadataFilters bool, strictMetadataEnforcement bool, maskSensitiveMetadataValues bool, allowServiceMetadataEditing bool, showOnboardingHints bool, showIntegrationTypeBadges bool, showServiceDetailInsights bool, deploymentRetentionDays int, defaultDashboardView string, statusSemanticsMode string, csrfToken string) {
+		@base.Doc("DDash - Settings") {
+			@base.AppHeader("Settings", "Configure defaults every service must provide.") {
+				<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/settings/integrations/github">
+					GitHub App
+				</a>
+				if showOnboardingHints {
+					<a class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/onboarding">
 					Onboarding
 				</a>
 			}
@@ -33,6 +36,7 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 				allowServiceMetadataEditing: %t,
 				showOnboardingHints: %t,
 				showIntegrationTypeBadges: %t,
+				showServiceDetailInsights: %t,
 				deploymentRetentionDays: %d,
 				defaultDashboardView: %q,
 				statusSemanticsMode: %q,
@@ -59,6 +63,7 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 						allowServiceMetadataEditing: this.allowServiceMetadataEditing,
 						showOnboardingHints: this.showOnboardingHints,
 						showIntegrationTypeBadges: this.showIntegrationTypeBadges,
+						showServiceDetailInsights: this.showServiceDetailInsights,
 						deploymentRetentionDays: this.deploymentRetentionDays,
 						defaultDashboardView: this.defaultDashboardView,
 						statusSemanticsMode: this.statusSemanticsMode,
@@ -91,7 +96,7 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 						this.saving = false;
 					}
 				},
-			}`, authToken, webhookSecret, enabled, showSyncStatus, showMetadataBadges, showEnvironmentColumn, enableSSELiveUpdates, showDeploymentHistory, showMetadataFilters, strictMetadataEnforcement, maskSensitiveMetadataValues, allowServiceMetadataEditing, showOnboardingHints, showIntegrationTypeBadges, deploymentRetentionDays, defaultDashboardView, statusSemanticsMode, components.RequiredFieldsJSON(requiredFields), components.StringListJSON(environmentOrder), csrfToken) }
+			}`, authToken, webhookSecret, enabled, showSyncStatus, showMetadataBadges, showEnvironmentColumn, enableSSELiveUpdates, showDeploymentHistory, showMetadataFilters, strictMetadataEnforcement, maskSensitiveMetadataValues, allowServiceMetadataEditing, showOnboardingHints, showIntegrationTypeBadges, showServiceDetailInsights, deploymentRetentionDays, defaultDashboardView, statusSemanticsMode, components.RequiredFieldsJSON(requiredFields), components.StringListJSON(environmentOrder), csrfToken) }
 		>
 			<div class="flex flex-col gap-8">
 				<div class="inline-flex w-fit items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
@@ -254,6 +259,7 @@ templ SettingsPage(requiredFields []components.ServiceField, environmentOrder []
 							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="allowServiceMetadataEditing" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Allow service metadata editing</label>
 							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showOnboardingHints" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show onboarding hints</label>
 							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showIntegrationTypeBadges" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show integration type badges</label>
+							<label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" x-model="showServiceDetailInsights" class="h-4 w-4 rounded border-gray-300 text-gray-900" />Show service detail insights</label>
 							<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Deployment retention days</label><input type="number" min="1" x-model.number="deploymentRetentionDays" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200" /></div>
 							<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Default dashboard view</label><select x-model="defaultDashboardView" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"><option value="grid">Grid</option><option value="table">Table</option></select></div>
 							<div class="space-y-1"><label class="text-xs font-medium text-gray-500">Status semantics</label><select x-model="statusSemanticsMode" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200"><option value="technical">Technical</option><option value="plain">Plain</option></select></div>

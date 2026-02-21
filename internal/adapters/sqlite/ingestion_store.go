@@ -11,6 +11,7 @@ import (
 type ingestionDatabase interface {
 	GetOrganizationByAuthToken(ctx context.Context, authToken string) (queries.Organization, error)
 	AppendEventStore(ctx context.Context, params queries.AppendEventStoreParams) error
+	AppendEventStoreBatch(ctx context.Context, params []queries.AppendEventStoreParams) error
 }
 
 type ingestionStore struct {
@@ -37,6 +38,22 @@ func (s *ingestionStore) GetOrganizationByAuthToken(ctx context.Context, token s
 }
 
 func (s *ingestionStore) AppendEvent(ctx context.Context, event ports.EventRecord) error {
+	params := toAppendEventParams(event)
+	return s.db.AppendEventStore(ctx, params)
+}
+
+func (s *ingestionStore) AppendEvents(ctx context.Context, events []ports.EventRecord) error {
+	if len(events) == 0 {
+		return nil
+	}
+	params := make([]queries.AppendEventStoreParams, 0, len(events))
+	for _, event := range events {
+		params = append(params, toAppendEventParams(event))
+	}
+	return s.db.AppendEventStoreBatch(ctx, params)
+}
+
+func toAppendEventParams(event ports.EventRecord) queries.AppendEventStoreParams {
 	subjectSource := sql.NullString{}
 	if event.SubjectSource != nil {
 		subjectSource = sql.NullString{String: *event.SubjectSource, Valid: true}
@@ -47,18 +64,19 @@ func (s *ingestionStore) AppendEvent(ctx context.Context, event ports.EventRecor
 		chainID = sql.NullString{String: *event.ChainID, Valid: true}
 	}
 
-	return s.db.AppendEventStore(ctx, queries.AppendEventStoreParams{
+	return queries.AppendEventStoreParams{
 		OrganizationID: event.OrganizationID,
 		EventID:        event.EventID,
 		EventType:      event.EventType,
 		EventSource:    event.EventSource,
 		EventTimestamp: event.EventTimestamp,
+		EventTsMs:      event.EventTSMs,
 		SubjectID:      event.SubjectID,
 		SubjectSource:  subjectSource,
 		SubjectType:    event.SubjectType,
 		ChainID:        chainID,
 		RawEventJson:   event.RawEventJSON,
-	})
+	}
 }
 
 func (s *ingestionStore) Close() error {

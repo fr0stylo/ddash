@@ -1,0 +1,72 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/fr0stylo/ddash/views/base"
+	"github.com/fr0stylo/ddash/views/components"
+)
+
+templ GitHubIntegrationPage(configured bool, mappings []components.GitHubInstallationMapping, csrfToken string) {
+	@base.Doc("GitHub App Integration") {
+		@base.AppHeader("GitHub App Integration", "Map GitHub App installations to this DDash organization.") {}
+		<main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+			<div class="flex flex-col gap-6">
+				if !configured {
+					<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">GitHub ingestor integration is not configured on server. Set `GITHUB_APP_INGESTOR_URL`, `GITHUB_APP_INGESTOR_SETUP_TOKEN`, and `DDASH_PUBLIC_URL`.</div>
+				}
+				@components.Card("Connect installation") {
+					<form method="post" action="/settings/integrations/github/link" class="space-y-4">
+						@components.CSRFInput(csrfToken)
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div>
+								<label class="text-xs font-medium text-gray-500">Default environment</label>
+								<input type="text" name="default_environment" value="production" class="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200" />
+							</div>
+						</div>
+						<button type="submit" class="inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800" disabled?={ !configured }>Start GitHub App install</button>
+					</form>
+				}
+
+				@components.Card("Mapped installations") {
+					if len(mappings) == 0 {
+						<div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">No mapped installations for this organization yet.</div>
+					} else {
+						<div class="overflow-hidden rounded-lg border border-gray-200">
+							<table class="min-w-full divide-y divide-gray-200 text-sm">
+								<thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+									<tr>
+										<th class="px-4 py-3 text-left font-medium">Installation</th>
+										<th class="px-4 py-3 text-left font-medium">Label</th>
+										<th class="px-4 py-3 text-left font-medium">Endpoint</th>
+										<th class="px-4 py-3 text-left font-medium">Default env</th>
+										<th class="px-4 py-3 text-left font-medium">Status</th>
+										<th class="px-4 py-3 text-left font-medium">Action</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-100">
+									for _, item := range mappings {
+										<tr class="hover:bg-gray-50">
+											<td class="px-4 py-3 font-medium text-gray-900">{ fmt.Sprint(item.InstallationID) }</td>
+											<td class="px-4 py-3 text-gray-700">{ item.OrganizationLabel }</td>
+											<td class="px-4 py-3 text-gray-700">{ item.Endpoint }</td>
+											<td class="px-4 py-3 text-gray-700">{ item.DefaultEnvironment }</td>
+											<td class="px-4 py-3 text-gray-700">{ item.Status }</td>
+											<td class="px-4 py-3">
+												<form method="post" action="/settings/integrations/github/delete">
+													@components.CSRFInput(csrfToken)
+													<input type="hidden" name="installation_id" value={ fmt.Sprint(item.InstallationID) } />
+													<button type="submit" class="inline-flex h-8 items-center rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 hover:bg-red-50">Revoke</button>
+												</form>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+				}
+			</div>
+		</main>
+	}
+}

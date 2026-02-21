@@ -236,13 +236,14 @@ ON CONFLICT(organization_id, preference_key) DO UPDATE SET
   preference_value = excluded.preference_value,
   updated_at = CURRENT_TIMESTAMP;
 
--- name: AppendEventStore :exec
+-- name: AppendEventStore :one
 INSERT INTO event_store (
   organization_id,
   event_id,
   event_type,
   event_source,
   event_timestamp,
+  event_ts_ms,
   subject_id,
   subject_source,
   subject_type,
@@ -255,13 +256,183 @@ VALUES (
   sqlc.arg('event_type'),
   sqlc.arg('event_source'),
   sqlc.arg('event_timestamp'),
+  sqlc.arg('event_ts_ms'),
   sqlc.arg('subject_id'),
   sqlc.narg('subject_source'),
   sqlc.arg('subject_type'),
   sqlc.narg('chain_id'),
   sqlc.arg('raw_event_json')
 )
-ON CONFLICT(organization_id, event_source, event_id) DO NOTHING;
+ON CONFLICT(organization_id, event_source, event_id) DO NOTHING
+RETURNING seq;
+
+-- name: UpsertServiceEnvStateFromEventSeq :exec
+INSERT INTO service_env_state (
+  organization_id,
+  service_name,
+  environment,
+  latest_event_seq,
+  latest_event_type,
+  latest_event_ts_ms,
+  latest_status,
+  latest_artifact_id
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+  es.seq,
+  es.event_type,
+  es.event_ts_ms,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%' THEN 'synced'
+    WHEN es.event_type LIKE 'dev.cdevents.service.upgraded.%' THEN 'synced'
+    WHEN es.event_type LIKE 'dev.cdevents.service.published.%' THEN 'synced'
+    WHEN es.event_type LIKE 'dev.cdevents.service.rolledback.%' THEN 'warning'
+    WHEN es.event_type LIKE 'dev.cdevents.service.removed.%' THEN 'out-of-sync'
+    ELSE 'unknown'
+  END AS latest_status,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS latest_artifact_id
+FROM event_store es
+WHERE es.organization_id = sqlc.arg('organization_id')
+  AND es.seq = sqlc.arg('seq')
+  AND es.subject_type = 'service'
+ON CONFLICT(organization_id, service_name, environment) DO UPDATE SET
+  latest_event_seq = excluded.latest_event_seq,
+  latest_event_type = excluded.latest_event_type,
+  latest_event_ts_ms = excluded.latest_event_ts_ms,
+  latest_status = excluded.latest_status,
+  latest_artifact_id = excluded.latest_artifact_id,
+  updated_at = CURRENT_TIMESTAMP
+WHERE
+  excluded.latest_event_ts_ms > service_env_state.latest_event_ts_ms
+  OR (excluded.latest_event_ts_ms = service_env_state.latest_event_ts_ms AND excluded.latest_event_seq > service_env_state.latest_event_seq);
+
+-- name: UpsertServiceDeliveryStatsDailyFromEventSeq :exec
+INSERT INTO service_delivery_stats_daily (
+  organization_id,
+  service_name,
+  day_utc,
+  deploy_success_count,
+  deploy_failure_count,
+  rollback_count
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  date(datetime(es.event_ts_ms / 1000, 'unixepoch')) AS day_utc,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%'
+      OR es.event_type LIKE 'dev.cdevents.service.upgraded.%'
+      OR es.event_type LIKE 'dev.cdevents.service.published.%' THEN 1
+    ELSE 0
+  END AS deploy_success_count,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.removed.%' THEN 1
+    ELSE 0
+  END AS deploy_failure_count,
+  CASE
+    WHEN es.event_type LIKE 'dev.cdevents.service.rolledback.%' THEN 1
+    ELSE 0
+  END AS rollback_count
+FROM event_store es
+WHERE es.organization_id = sqlc.arg('organization_id')
+  AND es.seq = sqlc.arg('seq')
+  AND es.subject_type = 'service'
+ON CONFLICT(organization_id, service_name, day_utc) DO UPDATE SET
+  deploy_success_count = service_delivery_stats_daily.deploy_success_count + excluded.deploy_success_count,
+  deploy_failure_count = service_delivery_stats_daily.deploy_failure_count + excluded.deploy_failure_count,
+  rollback_count = service_delivery_stats_daily.rollback_count + excluded.rollback_count,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- name: UpsertServiceChangeLinkFromEventSeq :exec
+INSERT INTO service_change_links (
+  organization_id,
+  service_name,
+  event_seq,
+  event_ts_ms,
+  chain_id,
+  environment,
+  artifact_id,
+  pipeline_run_id,
+  run_url,
+  actor_name
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  es.seq,
+  es.event_ts_ms,
+  es.chain_id,
+  COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS artifact_id,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.pipeline.runId'), '') AS pipeline_run_id,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.pipeline.url'), '') AS run_url,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.actor.name'), '') AS actor_name
+FROM event_store es
+WHERE es.organization_id = sqlc.arg('organization_id')
+  AND es.seq = sqlc.arg('seq')
+  AND es.subject_type = 'service'
+ON CONFLICT(organization_id, service_name, event_seq) DO NOTHING;
+
+-- name: UpsertServiceCurrentStateByService :exec
+INSERT INTO service_current_state (
+  organization_id,
+  service_name,
+  latest_event_seq,
+  latest_event_type,
+  latest_event_ts_ms,
+  latest_status,
+  latest_artifact_id,
+  latest_environment,
+  drift_count,
+  failed_streak
+)
+SELECT
+  sqlc.arg('organization_id'),
+  sqlc.arg('service_name'),
+  ses.latest_event_seq,
+  ses.latest_event_type,
+  ses.latest_event_ts_ms,
+  ses.latest_status,
+  ses.latest_artifact_id,
+  ses.environment,
+  COALESCE((
+    SELECT COUNT(DISTINCT NULLIF(se2.latest_artifact_id, ''))
+    FROM service_env_state se2
+    WHERE se2.organization_id = sqlc.arg('organization_id')
+      AND se2.service_name = sqlc.arg('service_name')
+  ), 0),
+  COALESCE((
+    SELECT SUM(CASE WHEN se3.latest_status IN ('warning', 'out-of-sync') THEN 1 ELSE 0 END)
+    FROM service_env_state se3
+    WHERE se3.organization_id = sqlc.arg('organization_id')
+      AND se3.service_name = sqlc.arg('service_name')
+  ), 0)
+FROM service_env_state ses
+WHERE ses.organization_id = sqlc.arg('organization_id')
+  AND ses.service_name = sqlc.arg('service_name')
+ORDER BY ses.latest_event_ts_ms DESC, ses.latest_event_seq DESC
+LIMIT 1
+ON CONFLICT(organization_id, service_name) DO UPDATE SET
+  latest_event_seq = excluded.latest_event_seq,
+  latest_event_type = excluded.latest_event_type,
+  latest_event_ts_ms = excluded.latest_event_ts_ms,
+  latest_status = excluded.latest_status,
+  latest_artifact_id = excluded.latest_artifact_id,
+  latest_environment = excluded.latest_environment,
+  drift_count = excluded.drift_count,
+  failed_streak = excluded.failed_streak,
+  updated_at = CURRENT_TIMESTAMP;
 
 -- name: CountEventStore :one
 SELECT COUNT(*)
@@ -272,12 +443,35 @@ SELECT COUNT(*)
 FROM event_store
 WHERE subject_type = sqlc.arg('subject_type');
 
+-- name: CountEventStoreByOrganization :one
+SELECT COUNT(*)
+FROM event_store
+WHERE organization_id = sqlc.arg('organization_id');
+
+-- name: CountEventStoreByOrganizationSinceMs :one
+SELECT COUNT(*)
+FROM event_store
+WHERE organization_id = sqlc.arg('organization_id')
+  AND event_ts_ms >= sqlc.arg('since_ms');
+
+-- name: ListEventStoreDailyVolume :many
+SELECT
+  date(datetime(event_ts_ms / 1000, 'unixepoch')) AS day,
+  COUNT(*) AS total
+FROM event_store
+WHERE organization_id = sqlc.arg('organization_id')
+  AND event_ts_ms >= sqlc.arg('since_ms')
+GROUP BY day
+ORDER BY day DESC
+LIMIT sqlc.arg('limit');
+
 -- name: ListServiceInstancesFromEvents :many
 WITH service_events AS (
   SELECT
     es.seq,
     es.event_type,
     es.event_timestamp,
+    es.event_ts_ms,
     CASE
       WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
       ELSE es.subject_id
@@ -304,7 +498,7 @@ WITH service_events AS (
     artifact_id,
     row_number() OVER (
       PARTITION BY service_name
-      ORDER BY event_timestamp DESC, seq DESC
+      ORDER BY event_ts_ms DESC, seq DESC
     ) AS rn
   FROM service_events
 )
@@ -324,6 +518,7 @@ WITH service_events AS (
     es.seq,
     es.event_type,
     es.event_timestamp,
+    es.event_ts_ms,
     CASE
       WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
       ELSE es.subject_id
@@ -351,7 +546,7 @@ WITH service_events AS (
     artifact_id,
     row_number() OVER (
       PARTITION BY service_name
-      ORDER BY event_timestamp DESC, seq DESC
+      ORDER BY event_ts_ms DESC, seq DESC
     ) AS rn
   FROM service_events
 )
@@ -386,7 +581,7 @@ WHERE es.subject_type = 'service'
   AND es.organization_id = sqlc.arg('organization_id')
   AND (sqlc.arg('env') = '' OR sqlc.arg('env') = 'all' OR json_extract(es.raw_event_json, '$.subject.content.environment.id') = sqlc.arg('env'))
   AND (sqlc.arg('service') = '' OR sqlc.arg('service') = 'all' OR es.subject_id = sqlc.arg('service') OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = sqlc.arg('service'))
-ORDER BY es.event_timestamp DESC, es.seq DESC;
+ORDER BY es.event_ts_ms DESC, es.seq DESC;
 
 -- name: GetServiceLatestFromEvents :one
 SELECT
@@ -401,7 +596,7 @@ FROM event_store es
 WHERE es.subject_type = 'service'
   AND es.organization_id = sqlc.arg('organization_id')
   AND (es.subject_id = sqlc.arg('service') OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = sqlc.arg('service'))
-ORDER BY es.event_timestamp DESC, es.seq DESC
+ORDER BY es.event_ts_ms DESC, es.seq DESC
 LIMIT 1;
 
 -- name: ListServiceEnvironmentsFromEvents :many
@@ -410,6 +605,7 @@ WITH service_events AS (
     es.seq,
     COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown') AS environment,
     es.event_timestamp,
+    es.event_ts_ms,
     COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '') AS artifact_id
   FROM event_store es
   WHERE es.subject_type = 'service'
@@ -422,7 +618,7 @@ WITH service_events AS (
     artifact_id,
     row_number() OVER (
       PARTITION BY environment
-      ORDER BY event_timestamp DESC, seq DESC
+      ORDER BY event_ts_ms DESC, seq DESC
     ) AS rn
   FROM service_events
 )
@@ -443,7 +639,43 @@ FROM event_store es
 WHERE es.subject_type = 'service'
   AND es.organization_id = sqlc.arg('organization_id')
   AND (es.subject_id = sqlc.arg('service') OR substr(es.subject_id, instr(es.subject_id, '/') + 1) = sqlc.arg('service'))
-ORDER BY es.event_timestamp DESC, es.seq DESC
+ORDER BY es.event_ts_ms DESC, es.seq DESC
+LIMIT sqlc.arg('limit');
+
+-- name: GetServiceCurrentState :one
+SELECT
+  latest_status,
+  latest_event_ts_ms,
+  drift_count,
+  failed_streak
+FROM service_current_state
+WHERE organization_id = sqlc.arg('organization_id')
+  AND service_name = sqlc.arg('service_name')
+LIMIT 1;
+
+-- name: GetServiceDeliveryStats30d :one
+SELECT
+  COALESCE(SUM(deploy_success_count), 0) AS deploy_success_count,
+  COALESCE(SUM(deploy_failure_count), 0) AS deploy_failure_count,
+  COALESCE(SUM(rollback_count), 0) AS rollback_count
+FROM service_delivery_stats_daily
+WHERE organization_id = sqlc.arg('organization_id')
+  AND service_name = sqlc.arg('service_name')
+  AND day_utc >= date('now', '-30 day');
+
+-- name: ListServiceChangeLinksRecent :many
+SELECT
+  event_ts_ms,
+  chain_id,
+  environment,
+  artifact_id,
+  pipeline_run_id,
+  run_url,
+  actor_name
+FROM service_change_links
+WHERE organization_id = sqlc.arg('organization_id')
+  AND service_name = sqlc.arg('service_name')
+ORDER BY event_ts_ms DESC
 LIMIT sqlc.arg('limit');
 
 -- name: ListLegacyDeploymentsForBackfill :many
@@ -458,3 +690,47 @@ FROM deployments d
 JOIN services s ON s.id = d.service_id
 JOIN environments e ON e.id = d.environment_id
 ORDER BY d.id;
+
+-- name: GetOrganizationRenderVersion :one
+SELECT COALESCE(MAX(version_value), 0) AS version
+FROM (
+  SELECT COALESCE(MAX(seq), 0) AS version_value
+  FROM event_store
+  WHERE event_store.organization_id = sqlc.arg('org_id')
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organizations
+  WHERE id = sqlc.arg('org_id')
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM service_metadata
+  WHERE service_metadata.organization_id = sqlc.arg('org_id')
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_required_fields
+  WHERE organization_required_fields.organization_id = sqlc.arg('org_id')
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_environment_priorities
+  WHERE organization_environment_priorities.organization_id = sqlc.arg('org_id')
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_features
+  WHERE organization_features.organization_id = sqlc.arg('org_id')
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
+  FROM organization_preferences
+  WHERE organization_preferences.organization_id = sqlc.arg('org_id')
+);

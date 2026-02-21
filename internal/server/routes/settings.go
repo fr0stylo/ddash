@@ -24,6 +24,7 @@ type settingsPayload struct {
 	AllowServiceMetadataEditing bool                 `json:"allowServiceMetadataEditing"`
 	ShowOnboardingHints         bool                 `json:"showOnboardingHints"`
 	ShowIntegrationTypeBadges   bool                 `json:"showIntegrationTypeBadges"`
+	ShowServiceDetailInsights   bool                 `json:"showServiceDetailInsights"`
 	DeploymentRetentionDays     int                  `json:"deploymentRetentionDays"`
 	DefaultDashboardView        string               `json:"defaultDashboardView"`
 	StatusSemanticsMode         string               `json:"statusSemanticsMode"`
@@ -65,6 +66,7 @@ func (v *ViewRoutes) handleSettings(c echo.Context) error {
 		settings.AllowServiceMetadataEditing,
 		settings.ShowOnboardingHints,
 		settings.ShowIntegrationTypeBadges,
+		settings.ShowServiceDetailInsights,
 		settings.DeploymentRetentionDays,
 		settings.DefaultDashboardView,
 		settings.StatusSemanticsMode,
@@ -98,6 +100,7 @@ func (v *ViewRoutes) handleSettingsUpdate(c echo.Context) error {
 		AllowServiceMetadataEditing: payload.AllowServiceMetadataEditing,
 		ShowOnboardingHints:         payload.ShowOnboardingHints,
 		ShowIntegrationTypeBadges:   payload.ShowIntegrationTypeBadges,
+		ShowServiceDetailInsights:   payload.ShowServiceDetailInsights,
 		DeploymentRetentionDays:     payload.DeploymentRetentionDays,
 		DefaultDashboardView:        payload.DefaultDashboardView,
 		StatusSemanticsMode:         payload.StatusSemanticsMode,

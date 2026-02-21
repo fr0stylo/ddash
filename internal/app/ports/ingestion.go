@@ -8,6 +8,7 @@ import (
 type IngestionStore interface {
 	GetOrganizationByAuthToken(ctx context.Context, token string) (Organization, error)
 	AppendEvent(ctx context.Context, event EventRecord) error
+	AppendEvents(ctx context.Context, events []EventRecord) error
 	Close() error
 }
 
@@ -18,6 +19,7 @@ type EventRecord struct {
 	EventType      string
 	EventSource    string
 	EventTimestamp string
+	EventTSMs      int64
 	SubjectID      string
 	SubjectSource  *string
 	SubjectType    string

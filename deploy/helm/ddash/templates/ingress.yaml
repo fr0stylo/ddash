@@ -1,0 +1,55 @@
+{{- if .Values.ingress.ddash.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ddash.fullname" . }}-ddash
+  annotations:
+{{ toYaml .Values.ingress.ddash.annotations | indent 4 }}
+spec:
+  {{- if .Values.ingress.ddash.className }}
+  ingressClassName: {{ .Values.ingress.ddash.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.ddash.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ddash.fullname" . }}-ddash
+                port:
+                  number: {{ .Values.ddash.service.port }}
+  {{- if .Values.ingress.ddash.tls }}
+  tls:
+{{ toYaml .Values.ingress.ddash.tls | indent 4 }}
+  {{- end }}
+{{- end }}
+{{- if and .Values.githubIngestor.enabled .Values.ingress.githubIngestor.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ddash.fullname" . }}-githubingestor
+  annotations:
+{{ toYaml .Values.ingress.githubIngestor.annotations | indent 4 }}
+spec:
+  {{- if .Values.ingress.githubIngestor.className }}
+  ingressClassName: {{ .Values.ingress.githubIngestor.className }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.githubIngestor.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ddash.fullname" . }}-githubingestor
+                port:
+                  number: {{ .Values.githubIngestor.service.port }}
+  {{- if .Values.ingress.githubIngestor.tls }}
+  tls:
+{{ toYaml .Values.ingress.githubIngestor.tls | indent 4 }}
+  {{- end }}
+{{- end }}

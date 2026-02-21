@@ -22,6 +22,7 @@ const (
 	featureAllowServiceMetadataEditing = "allow_service_metadata_editing"
 	featureShowOnboardingHints         = "show_onboarding_hints"
 	featureShowIntegrationTypeBadges   = "show_integration_type_badges"
+	featureShowServiceDetailInsights   = "show_service_detail_insights"
 
 	prefDeploymentRetentionDays = "deployment_retention_days"
 	prefDefaultDashboardView    = "default_dashboard_view"
@@ -54,6 +55,7 @@ type OrganizationSettings struct {
 	AllowServiceMetadataEditing bool
 	ShowOnboardingHints         bool
 	ShowIntegrationTypeBadges   bool
+	ShowServiceDetailInsights   bool
 	DeploymentRetentionDays     int
 	DefaultDashboardView        string
 	StatusSemanticsMode         string
@@ -84,6 +86,7 @@ type OrganizationSettingsUpdate struct {
 	AllowServiceMetadataEditing bool
 	ShowOnboardingHints         bool
 	ShowIntegrationTypeBadges   bool
+	ShowServiceDetailInsights   bool
 	DeploymentRetentionDays     int
 	DefaultDashboardView        string
 	StatusSemanticsMode         string
@@ -128,6 +131,7 @@ func (s *OrganizationConfigService) GetSettings(ctx context.Context, organizatio
 		featureAllowServiceMetadataEditing: true,
 		featureShowOnboardingHints:         true,
 		featureShowIntegrationTypeBadges:   true,
+		featureShowServiceDetailInsights:   true,
 	}
 	for _, feature := range features {
 		key := strings.ToLower(strings.TrimSpace(feature.Key))
@@ -177,6 +181,7 @@ func (s *OrganizationConfigService) GetSettings(ctx context.Context, organizatio
 		AllowServiceMetadataEditing: featureFlags[featureAllowServiceMetadataEditing],
 		ShowOnboardingHints:         featureFlags[featureShowOnboardingHints],
 		ShowIntegrationTypeBadges:   featureFlags[featureShowIntegrationTypeBadges],
+		ShowServiceDetailInsights:   featureFlags[featureShowServiceDetailInsights],
 		DeploymentRetentionDays:     deploymentRetentionDays,
 		DefaultDashboardView:        defaultDashboardView,
 		StatusSemanticsMode:         statusSemanticsMode,
@@ -220,6 +225,7 @@ func (s *OrganizationConfigService) UpdateSettings(ctx context.Context, organiza
 		AllowServiceMetadataEditing: update.AllowServiceMetadataEditing,
 		ShowOnboardingHints:         update.ShowOnboardingHints,
 		ShowIntegrationTypeBadges:   update.ShowIntegrationTypeBadges,
+		ShowServiceDetailInsights:   update.ShowServiceDetailInsights,
 		DeploymentRetentionDays:     update.DeploymentRetentionDays,
 		DefaultDashboardView:        update.DefaultDashboardView,
 		StatusSemanticsMode:         update.StatusSemanticsMode,

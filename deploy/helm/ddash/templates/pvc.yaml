@@ -1,0 +1,29 @@
+{{- if and .Values.ddash.persistence.enabled (ne .Values.ddash.workload.kind "StatefulSet") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ddash.fullname" . }}-ddash-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.ddash.persistence.size }}
+  {{- if .Values.ddash.persistence.storageClassName }}
+  storageClassName: {{ .Values.ddash.persistence.storageClassName }}
+  {{- end }}
+---
+{{- end }}
+{{- if and .Values.githubIngestor.enabled .Values.githubIngestor.persistence.enabled (ne .Values.githubIngestor.workload.kind "StatefulSet") }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ddash.fullname" . }}-githubingestor-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.githubIngestor.persistence.size }}
+  {{- if .Values.githubIngestor.persistence.storageClassName }}
+  storageClassName: {{ .Values.githubIngestor.persistence.storageClassName }}
+  {{- end }}
+{{- end }}

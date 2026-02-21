@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	slogecho "github.com/samber/slog-echo"
 
+	"github.com/fr0stylo/ddash/internal/observability"
 	"github.com/fr0stylo/ddash/internal/renderer"
 )
 
@@ -33,6 +34,8 @@ func New(log *slog.Logger, publicFS embed.FS) *Server {
 	e.Use(slogecho.New(log))
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
+	e.Use(observability.EchoMiddleware())
+	e.Use(observability.EchoSpanEnrichmentMiddleware())
 	e.Use(middleware.CSRFWithConfig(middleware.CSRFConfig{
 		TokenLookup: "header:X-CSRF-Token,form:_csrf",
 		Skipper: func(c echo.Context) bool {

@@ -26,6 +26,15 @@ func (t *Renderer) Render(w io.Writer, _ string, data interface{}, c echo.Contex
 	return tc.Render(c.Request().Context(), w)
 }
 
+// RenderComponent renders a templ component to bytes.
+func RenderComponent(ctx context.Context, component templ.Component) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := component.Render(ctx, &buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 // DeploymentRow renders a deployment row to a string.
 func DeploymentRow(ctx context.Context, row components.DeploymentRow, showSyncStatus, showEnvironmentColumn bool, statusSemanticsMode string) (string, error) {
 	var buf bytes.Buffer

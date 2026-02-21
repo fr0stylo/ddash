@@ -14,12 +14,23 @@ import (
 
 // ServiceReadService provides read-side projections for service/deployment views.
 type ServiceReadService struct {
-	store ports.ServiceReadStore
+	serviceStore   ports.ServiceQueryStore
+	metadataStore  ports.ServiceMetadataStore
+	analyticsStore ports.ServiceAnalyticsStore
 }
 
-// NewServiceReadService constructs a read-side service.
-func NewServiceReadService(store ports.ServiceReadStore) *ServiceReadService {
-	return &ServiceReadService{store: store}
+// NewServiceReadService constructs a read-side service with separated dependencies.
+func NewServiceReadService(serviceStore ports.ServiceQueryStore, metadataStore ports.ServiceMetadataStore, analyticsStore ports.ServiceAnalyticsStore) *ServiceReadService {
+	return &ServiceReadService{
+		serviceStore:   serviceStore,
+		metadataStore:  metadataStore,
+		analyticsStore: analyticsStore,
+	}
+}
+
+// NewServiceReadServiceFromStore constructs from a single aggregate store.
+func NewServiceReadServiceFromStore(store ports.ServiceReadStore) *ServiceReadService {
+	return NewServiceReadService(store, store, store)
 }
 
 // GetHomeData returns service cards/table data and metadata filter options.
@@ -37,7 +48,7 @@ func (s *ServiceReadService) GetHomeData(ctx context.Context, organizationID int
 
 // GetServicesByEnv returns service rows enriched with metadata badges/tags.
 func (s *ServiceReadService) GetServicesByEnv(ctx context.Context, organizationID int64, env string) ([]domain.Service, error) {
-	services, err := s.store.ListServiceInstances(ctx, organizationID, env)
+	services, err := s.serviceStore.ListServiceInstances(ctx, organizationID, env)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +61,7 @@ func (s *ServiceReadService) GetServicesByEnv(ctx context.Context, organizationI
 
 // GetDeployments returns deployment rows enriched with metadata tags.
 func (s *ServiceReadService) GetDeployments(ctx context.Context, organizationID int64, env, service string) ([]domain.DeploymentRow, []domain.MetadataFilterOption, error) {
-	rows, err := s.store.ListDeployments(ctx, organizationID, env, service)
+	rows, err := s.serviceStore.ListDeployments(ctx, organizationID, env, service)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -61,30 +72,47 @@ func (s *ServiceReadService) GetDeployments(ctx context.Context, organizationID 
 	return applyMetadataToDeployments(rows, metadata), metadata.Options, nil
 }
 
+// GetOrganizationRenderVersion returns a lightweight version stamp for UI fragments.
+func (s *ServiceReadService) GetOrganizationRenderVersion(ctx context.Context, organizationID int64) (int64, error) {
+	return s.serviceStore.GetOrganizationRenderVersion(ctx, organizationID)
+}
+
 // GetServiceDetail returns a fully composed service details view model.
 func (s *ServiceReadService) GetServiceDetail(ctx context.Context, organizationID int64, name string) (domain.ServiceDetail, error) {
-	service, err := s.store.GetServiceLatest(ctx, organizationID, name)
+	service, err := s.serviceStore.GetServiceLatest(ctx, organizationID, name)
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
 
-	requiredFields, err := s.store.ListRequiredFields(ctx, organizationID)
+	requiredFields, err := s.metadataStore.ListRequiredFields(ctx, organizationID)
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
-	metadataRows, err := s.store.ListServiceMetadata(ctx, organizationID, name)
+	metadataRows, err := s.metadataStore.ListServiceMetadata(ctx, organizationID, name)
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
-	serviceEnvs, err := s.store.ListServiceEnvironments(ctx, organizationID, name)
+	serviceEnvs, err := s.serviceStore.ListServiceEnvironments(ctx, organizationID, name)
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
-	envPriorities, err := s.store.ListEnvironmentPriorities(ctx, organizationID)
+	envPriorities, err := s.metadataStore.ListEnvironmentPriorities(ctx, organizationID)
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
-	historyRows, err := s.store.ListDeploymentHistory(ctx, organizationID, name, 200)
+	historyRows, err := s.serviceStore.ListDeploymentHistory(ctx, organizationID, name, 200)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+	currentState, err := s.analyticsStore.GetServiceCurrentState(ctx, organizationID, name)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+	stats30d, err := s.analyticsStore.GetServiceDeliveryStats30d(ctx, organizationID, name)
+	if err != nil {
+		return domain.ServiceDetail{}, err
+	}
+	changeLinks, err := s.analyticsStore.ListServiceChangeLinksRecent(ctx, organizationID, name, 20)
 	if err != nil {
 		return domain.ServiceDetail{}, err
 	}
@@ -111,7 +139,47 @@ func (s *ServiceReadService) GetServiceDetail(ctx context.Context, organizationI
 		OrgRequiredFields: mapRequiredFields(requiredFields),
 		Environments:      serviceEnvs,
 		DeploymentHistory: historyRows,
+		LastStatus:        strings.TrimSpace(currentState.LastStatus),
+		DriftCount:        currentState.DriftCount,
+		FailedStreak:      currentState.FailedStreak,
+		Success30d:        stats30d.Success30d,
+		Failures30d:       stats30d.Failures30d,
+		Rollbacks30d:      stats30d.Rollbacks30d,
+		ChangeFailureRate: formatChangeFailureRate(stats30d.Success30d, stats30d.Failures30d, stats30d.Rollbacks30d),
+		RiskEvents:        mapServiceRiskEvents(changeLinks),
 	}, nil
+}
+
+func formatChangeFailureRate(successes, failures, rollbacks int) string {
+	total := successes + failures + rollbacks
+	if total <= 0 {
+		return "0%"
+	}
+	rate := (float64(failures+rollbacks) / float64(total)) * 100
+	return strings.TrimRight(strings.TrimRight(fmtFloat(rate), "0"), ".") + "%"
+}
+
+func mapServiceRiskEvents(rows []ports.ServiceChangeLink) []domain.ServiceRiskEvent {
+	out := make([]domain.ServiceRiskEvent, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.ServiceRiskEvent{
+			When:          formatTimestampFromUnixMs(row.EventTSMs),
+			Environment:   strings.TrimSpace(row.Environment),
+			Artifact:      strings.TrimSpace(row.ArtifactID),
+			ChainID:       strings.TrimSpace(row.ChainID),
+			PipelineRunID: strings.TrimSpace(row.PipelineRunID),
+			RunURL:        strings.TrimSpace(row.RunURL),
+			ActorName:     strings.TrimSpace(row.ActorName),
+		})
+	}
+	return out
+}
+
+func formatTimestampFromUnixMs(ts int64) string {
+	if ts <= 0 {
+		return ""
+	}
+	return time.UnixMilli(ts).Local().Format("2006-01-02 15:04")
 }
 
 func enrichReleaseChangeLogs(rows []domain.DeploymentRecord) {
@@ -199,7 +267,7 @@ type metadataFilterData struct {
 }
 
 func (s *ServiceReadService) loadMetadataFilterData(ctx context.Context, organizationID int64) (metadataFilterData, error) {
-	requiredRows, err := s.store.ListRequiredFields(ctx, organizationID)
+	requiredRows, err := s.metadataStore.ListRequiredFields(ctx, organizationID)
 	if err != nil {
 		return metadataFilterData{}, err
 	}
@@ -217,7 +285,7 @@ func (s *ServiceReadService) loadMetadataFilterData(ctx context.Context, organiz
 		}
 	}
 
-	metadataRows, err := s.store.ListServiceMetadataValuesByOrganization(ctx, organizationID)
+	metadataRows, err := s.metadataStore.ListServiceMetadataValuesByOrganization(ctx, organizationID)
 	if err != nil {
 		return metadataFilterData{}, err
 	}

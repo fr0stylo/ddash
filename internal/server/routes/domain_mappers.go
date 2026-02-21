@@ -75,6 +75,19 @@ func mapDomainServiceDetail(detail domain.ServiceDetail) components.ServiceDetai
 		})
 	}
 
+	riskEvents := make([]components.ServiceRiskEvent, 0, len(detail.RiskEvents))
+	for _, row := range detail.RiskEvents {
+		riskEvents = append(riskEvents, components.ServiceRiskEvent{
+			When:          row.When,
+			Environment:   row.Environment,
+			Artifact:      row.Artifact,
+			ChainID:       row.ChainID,
+			PipelineRunID: row.PipelineRunID,
+			RunURL:        row.RunURL,
+			ActorName:     row.ActorName,
+		})
+	}
+
 	return components.ServiceDetail{
 		Title:             detail.Title,
 		Description:       detail.Description,
@@ -85,6 +98,14 @@ func mapDomainServiceDetail(detail domain.ServiceDetail) components.ServiceDetai
 		OrgRequiredFields: requiredFields,
 		Environments:      envs,
 		DeploymentHistory: history,
+		LastStatus:        detail.LastStatus,
+		DriftCount:        detail.DriftCount,
+		FailedStreak:      detail.FailedStreak,
+		Success30d:        detail.Success30d,
+		Failures30d:       detail.Failures30d,
+		Rollbacks30d:      detail.Rollbacks30d,
+		ChangeFailureRate: detail.ChangeFailureRate,
+		RiskEvents:        riskEvents,
 	}
 }
 

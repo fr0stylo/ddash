@@ -16,6 +16,7 @@ import (
 	cdeventsv05 "github.com/cdevents/sdk-go/pkg/api/v05"
 
 	"github.com/fr0stylo/ddash/internal/adapters/sqlite"
+	"github.com/fr0stylo/ddash/internal/app/services"
 	"github.com/fr0stylo/ddash/internal/db"
 	"github.com/fr0stylo/ddash/internal/db/queries"
 )
@@ -65,7 +66,7 @@ func TestHandleAcceptsValidDeliveryCDEvent(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := httptest.NewRecorder()
-	h := NewHandler(sqlite.NewIngestionStoreFactory(dbPath))
+	h := NewHandler(sqlite.NewIngestionStoreFactory(dbPath), services.IngestBatchConfig{Enabled: false})
 	if err := h.Handle(rec, req); err != nil {
 		t.Fatalf("handle request: %v", err)
 	}
@@ -130,7 +131,7 @@ func TestHandleRejectsInvalidSignature(t *testing.T) {
 	req.Header.Set(SignatureHeader, "deadbeef")
 
 	rec := httptest.NewRecorder()
-	h := NewHandler(sqlite.NewIngestionStoreFactory(dbPath))
+	h := NewHandler(sqlite.NewIngestionStoreFactory(dbPath), services.IngestBatchConfig{Enabled: false})
 	if err := h.Handle(rec, req); err != nil {
 		t.Fatalf("handle request: %v", err)
 	}

@@ -198,32 +198,42 @@ func (s *OrganizationManagementService) CreateOrganization(ctx context.Context, 
 	if userID <= 0 || name == "" {
 		return ports.Organization{}, ErrOrganizationAccessDenied
 	}
-	authToken, err := randomHexToken(16)
-	if err != nil {
-		return ports.Organization{}, err
+	for i := 0; i < 20; i++ {
+		candidateName := name
+		if i > 0 {
+			candidateName = fmt.Sprintf("%s-%d", name, i+1)
+		}
+		authToken, err := randomHexToken(16)
+		if err != nil {
+			return ports.Organization{}, err
+		}
+		secret, err := randomHexToken(24)
+		if err != nil {
+			return ports.Organization{}, err
+		}
+		joinCode, err := randomHexToken(6)
+		if err != nil {
+			return ports.Organization{}, err
+		}
+		org, err := s.store.CreateOrganization(ctx, ports.CreateOrganizationInput{
+			Name:          candidateName,
+			AuthToken:     authToken,
+			JoinCode:      joinCode,
+			WebhookSecret: secret,
+			Enabled:       true,
+		})
+		if err != nil {
+			if isOrganizationNameConflict(err) {
+				continue
+			}
+			return ports.Organization{}, err
+		}
+		if err := s.store.UpsertOrganizationMember(ctx, org.ID, userID, memberRoleOwner); err != nil {
+			return ports.Organization{}, err
+		}
+		return org, nil
 	}
-	secret, err := randomHexToken(24)
-	if err != nil {
-		return ports.Organization{}, err
-	}
-	joinCode, err := randomHexToken(6)
-	if err != nil {
-		return ports.Organization{}, err
-	}
-	org, err := s.store.CreateOrganization(ctx, ports.CreateOrganizationInput{
-		Name:          name,
-		AuthToken:     authToken,
-		JoinCode:      joinCode,
-		WebhookSecret: secret,
-		Enabled:       true,
-	})
-	if err != nil {
-		return ports.Organization{}, err
-	}
-	if err := s.store.UpsertOrganizationMember(ctx, org.ID, userID, memberRoleOwner); err != nil {
-		return ports.Organization{}, err
-	}
-	return org, nil
+	return ports.Organization{}, errors.New("failed to create unique organization")
 }
 
 // EnsureUser upserts local user profile.

@@ -42,16 +42,61 @@ type ServiceLatest struct {
 	IntegrationType string
 }
 
-// ServiceReadStore is a backend-agnostic read model store.
-type ServiceReadStore interface {
+// ServiceCurrentState holds latest projected state for one service.
+type ServiceCurrentState struct {
+	LastStatus    string
+	LastEventTSMs int64
+	DriftCount    int
+	FailedStreak  int
+}
+
+// ServiceDeliveryStats summarizes 30-day delivery outcomes.
+type ServiceDeliveryStats struct {
+	Success30d   int
+	Failures30d  int
+	Rollbacks30d int
+}
+
+// ServiceChangeLink is one recent chain/audit linkage row.
+type ServiceChangeLink struct {
+	EventTSMs     int64
+	ChainID       string
+	Environment   string
+	ArtifactID    string
+	PipelineRunID string
+	RunURL        string
+	ActorName     string
+}
+
+// ServiceQueryStore exposes non-analytical service/deployment reads.
+type ServiceQueryStore interface {
 	ListServiceInstances(ctx context.Context, organizationID int64, env string) ([]domain.Service, error)
 	ListDeployments(ctx context.Context, organizationID int64, env, service string) ([]domain.DeploymentRow, error)
 	GetServiceLatest(ctx context.Context, organizationID int64, name string) (ServiceLatest, error)
 	ListServiceEnvironments(ctx context.Context, organizationID int64, service string) ([]domain.ServiceEnvironment, error)
 	ListDeploymentHistory(ctx context.Context, organizationID int64, service string, limit int64) ([]domain.DeploymentRecord, error)
+	GetOrganizationRenderVersion(ctx context.Context, organizationID int64) (int64, error)
+}
+
+// ServiceMetadataStore exposes metadata/settings reads for service views.
+type ServiceMetadataStore interface {
 	ListRequiredFields(ctx context.Context, organizationID int64) ([]RequiredField, error)
 	ListServiceMetadata(ctx context.Context, organizationID int64, service string) ([]MetadataValue, error)
 	ListServiceMetadataValuesByOrganization(ctx context.Context, organizationID int64) ([]ServiceMetadataValue, error)
 	ListEnvironmentPriorities(ctx context.Context, organizationID int64) ([]string, error)
 	ListDiscoveredEnvironments(ctx context.Context, organizationID int64) ([]string, error)
+}
+
+// ServiceAnalyticsStore exposes analytical projection reads.
+type ServiceAnalyticsStore interface {
+	GetServiceCurrentState(ctx context.Context, organizationID int64, service string) (ServiceCurrentState, error)
+	GetServiceDeliveryStats30d(ctx context.Context, organizationID int64, service string) (ServiceDeliveryStats, error)
+	ListServiceChangeLinksRecent(ctx context.Context, organizationID int64, service string, limit int64) ([]ServiceChangeLink, error)
+}
+
+// ServiceReadStore is a convenience aggregate for callsites using one store.
+type ServiceReadStore interface {
+	ServiceQueryStore
+	ServiceMetadataStore
+	ServiceAnalyticsStore
 }

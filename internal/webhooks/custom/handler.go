@@ -22,8 +22,8 @@ type Handler struct {
 }
 
 // NewHandler constructs a CDEvents webhook handler.
-func NewHandler(storeFactory ports.IngestionStoreFactory) *Handler {
-	return &Handler{ingest: services.NewEventIngestService(storeFactory)}
+func NewHandler(storeFactory ports.IngestionStoreFactory, batchConfig services.IngestBatchConfig) *Handler {
+	return &Handler{ingest: services.NewEventIngestServiceWithConfig(storeFactory, batchConfig)}
 }
 
 // Handle validates and processes a webhook request.
@@ -71,6 +71,9 @@ func writeIngestHTTPError(w http.ResponseWriter, err error) bool {
 		return true
 	case services.IngestErrorUnsupportedType:
 		http.Error(w, "unsupported cdevent type", http.StatusUnprocessableEntity)
+		return true
+	case services.IngestErrorBusy:
+		http.Error(w, "ingestion busy", http.StatusServiceUnavailable)
 		return true
 	}
 

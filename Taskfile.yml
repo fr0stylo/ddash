@@ -6,7 +6,9 @@ tasks:
     deps:
       - generate
     cmds:
-      - go run ./cmd/server
+      - DDASH_OTEL_METRICS_CONSOLE={{.OTEL_METRICS_CONSOLE}} go run ./cmd/server
+    vars:
+      OTEL_METRICS_CONSOLE: "true"
 
   build:
     desc: Build the server binary
@@ -48,6 +50,240 @@ tasks:
       SERVICE: billing-api
       ENV: staging
       FLAGS: ""
+
+  events:publish:examples:
+    desc: Show ready-to-run event publish examples
+    cmds:
+      - task --list
+
+  events:publish:example:service:
+    desc: Example publish for service delivery event
+    cmds:
+      - go run ./cmd/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -artifact={{.ARTIFACT}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: service.deployed
+      SERVICE: billing-api
+      ENV: staging
+      ARTIFACT: pkg:generic/billing-api@demo
+      FLAGS: ""
+
+  events:publish:example:environment:
+    desc: Example publish for environment lifecycle event
+    cmds:
+      - go run ./cmd/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -environment={{.ENV}} -subject-id={{.SUBJECT_ID}} -subject-type=environment {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: environment.modified
+      ENV: staging
+      SUBJECT_ID: environment/staging
+      FLAGS: ""
+
+  events:publish:example:pipeline:
+    desc: Example publish for pipeline custom event
+    cmds:
+      - go run ./cmd/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=pipeline -subject-id={{.SUBJECT_ID}} -pipeline-run={{.PIPELINE_RUN}} -pipeline-url={{.PIPELINE_URL}} -chain-id={{.CHAIN_ID}} -actor={{.ACTOR}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.pipeline.run.started.0.3.0
+      SERVICE: billing-api
+      ENV: staging
+      SUBJECT_ID: pipeline/billing-api
+      PIPELINE_RUN: run-123
+      PIPELINE_URL: https://ci.example.local/runs/123
+      CHAIN_ID: chain-123
+      ACTOR: ci-bot
+      FLAGS: ""
+
+  events:publish:example:change:
+    desc: Example publish for source change custom event
+    cmds:
+      - go run ./cmd/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=change -subject-id={{.SUBJECT_ID}} -chain-id={{.CHAIN_ID}} -actor={{.ACTOR}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.change.merged.0.3.0
+      SERVICE: billing-api
+      ENV: staging
+      SUBJECT_ID: change/pr-42
+      CHAIN_ID: chain-123
+      ACTOR: dev-user
+      FLAGS: ""
+
+  events:publish:example:artifact:
+    desc: Example publish for artifact custom event
+    cmds:
+      - go run ./cmd/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=artifact -subject-id={{.SUBJECT_ID}} -artifact={{.ARTIFACT}} -chain-id={{.CHAIN_ID}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.artifact.promoted.0.3.0
+      SERVICE: billing-api
+      ENV: production
+      SUBJECT_ID: artifact/billing-api
+      ARTIFACT: pkg:generic/billing-api@demo
+      CHAIN_ID: chain-123
+      FLAGS: ""
+
+  events:publish:example:incident:
+    desc: Example publish for incident custom event
+    cmds:
+      - go run ./cmd/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=incident -subject-id={{.SUBJECT_ID}} -actor={{.ACTOR}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.incident.opened.0.3.0
+      SERVICE: billing-api
+      ENV: production
+      SUBJECT_ID: incident/inc-1001
+      ACTOR: oncall-bot
+      FLAGS: ""
+
+  events:shape:
+    desc: Print event-store workload shape summary
+    cmds:
+      - go run ./cmd/dbshape -db={{.DB}} -org={{.ORG}} -window-days={{.WINDOW_DAYS}} -max-concurrent-users={{.MAX_CONCURRENT_USERS}}
+    vars:
+      DB: data/default
+      ORG: 0
+      WINDOW_DAYS: 30
+      MAX_CONCURRENT_USERS: 0
+
+  load:server:
+    desc: Start isolated DDash server for load tests
+    cmds:
+      - |
+        set -euo pipefail
+        if ss -ltn '( sport = :{{.PORT}} )' | grep -q LISTEN; then
+          echo "Port {{.PORT}} is already in use. Stop existing process or set PORT=<free-port>." >&2
+          exit 1
+        fi
+        mkdir -p tmp
+        go build -o tmp/ddash-load ./cmd/server
+        DDASH_ENV=dev DDASH_SESSION_SECRET=loadtest-session-secret DDASH_PORT={{.PORT}} DDASH_DB_PATH=tmp/loadtest tmp/ddash-load > /tmp/ddash-load.log 2>&1 & echo $! > /tmp/ddash-load.pid
+        for i in $(seq 1 40); do
+          if curl -fsS http://localhost:{{.PORT}}/login >/dev/null 2>&1; then
+            echo "Load-test server ready on :{{.PORT}}"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "Server did not start in time. Check /tmp/ddash-load.log" >&2
+        exit 1
+    vars:
+      PORT: 19090
+
+  load:stop:
+    desc: Stop isolated DDash load-test server
+    cmds:
+      - |
+        if [ -f /tmp/ddash-load.pid ]; then
+          kill "$(cat /tmp/ddash-load.pid)" 2>/dev/null || true
+          rm -f /tmp/ddash-load.pid
+        fi
+        pkill -f "tmp/ddash-load" 2>/dev/null || true
+
+  load:seed:
+    desc: Seed org/user baseline for load tests
+    cmds:
+      - |
+        sqlite3 "tmp/loadtest.sqlite" "
+        INSERT OR IGNORE INTO organizations (id,name,auth_token,join_code,webhook_secret,enabled)
+        VALUES (9001,'loadtest-org','loadtest-token-01','loadtest-join-01','loadtest-secret-01',1);
+        UPDATE organizations SET
+          name='loadtest-org',
+          auth_token='loadtest-token-01',
+          join_code='loadtest-join-01',
+          webhook_secret='loadtest-secret-01',
+          enabled=1
+        WHERE id=9001;
+
+        INSERT OR IGNORE INTO users (id,github_id,email,nickname,name,avatar_url)
+        VALUES (9001,'loadtest-admin','loadtest-admin@example.local','loadtest-admin','Load Test Admin','');
+        UPDATE users SET github_id='loadtest-admin', nickname='loadtest-admin', name='Load Test Admin'
+        WHERE email='loadtest-admin@example.local';
+
+        INSERT OR IGNORE INTO organization_members (organization_id,user_id,role)
+        SELECT 9001,id,'owner' FROM users WHERE email='loadtest-admin@example.local';
+        UPDATE organization_members SET role='owner'
+        WHERE organization_id=9001 AND user_id=(SELECT id FROM users WHERE email='loadtest-admin@example.local');
+        "
+      - go run ./cmd/eventpublisher -endpoint=http://localhost:{{.PORT}} -token=loadtest-token-01 -secret=loadtest-secret-01 -type=service.deployed -service=orders -environment=staging -artifact=pkg:generic/orders@seed1
+      - go run ./cmd/eventpublisher -endpoint=http://localhost:{{.PORT}} -token=loadtest-token-01 -secret=loadtest-secret-01 -type=service.deployed -service=orders -environment=production -artifact=pkg:generic/orders@seed2
+      - go run ./cmd/eventpublisher -endpoint=http://localhost:{{.PORT}} -token=loadtest-token-01 -secret=loadtest-secret-01 -type=service.deployed -service=billing -environment=staging -artifact=pkg:generic/billing@seed1
+    vars:
+      PORT: 19090
+
+  load:test:ingest:
+    desc: Run k6 ingest load scenario
+    cmds:
+      - BASE_URL=http://localhost:{{.PORT}} AUTH_TOKEN=loadtest-token-01 WEBHOOK_SECRET=loadtest-secret-01 INGEST_INCLUDE_CUSTOM_TYPES={{.INCLUDE_CUSTOM_TYPES}} k6 run loadtest/ingest.js
+    vars:
+      PORT: 19090
+      INCLUDE_CUSTOM_TYPES: false
+
+  load:test:read:
+    desc: Run k6 read load scenario
+    cmds:
+      - BASE_URL=http://localhost:{{.PORT}} k6 run loadtest/read.js
+    vars:
+      PORT: 19090
+
+  load:test:mixed:
+    desc: Run k6 mixed read and ingest scenario
+    cmds:
+      - BASE_URL=http://localhost:{{.PORT}} AUTH_TOKEN=loadtest-token-01 WEBHOOK_SECRET=loadtest-secret-01 k6 run loadtest/mixed.js
+    vars:
+      PORT: 19090
+
+  load:report:
+    desc: Show quick pointers to load-test logs
+    cmds:
+      - ls /tmp/ddash-load.log
+      - sqlite3 "tmp/loadtest.sqlite" "SELECT COUNT(*) AS event_store_rows FROM event_store;"
+
+  load:all:
+    desc: Run full local load-test flow (server, seed, ingest, read, mixed, report, stop)
+    cmds:
+      - |
+        set -euo pipefail
+        cleanup() {
+          task load:stop >/dev/null 2>&1 || true
+        }
+        trap cleanup EXIT
+
+        task load:server PORT={{.PORT}}
+        task load:seed PORT={{.PORT}}
+        task load:test:ingest PORT={{.PORT}}
+        task load:test:read PORT={{.PORT}}
+        task load:test:mixed PORT={{.PORT}}
+        task load:report
+        cleanup
+        trap - EXIT
+    vars:
+      PORT: 19090
+
+  githubapp:run:
+    desc: Run GitHub App webhook ingestor and forward to DDash
+    cmds:
+      - go run ./cmd/githubappingestor
+
+  events:projections:rebuild:
+    desc: Rebuild service projection tables from event store
+    cmds:
+      - go run ./cmd/projectionsync -db={{.DB}} -org={{.ORG}}
+    vars:
+      DB: data/default
+      ORG: 0
 
   e2e:
     desc: Run local end-to-end Playwright checklist suite
@@ -133,6 +369,28 @@ tasks:
         exit "$status"
     vars:
       PORT: 18080
+
+  mvp:check:quick:
+    desc: Run fast automated MVP checks (build/test/helm)
+    cmds:
+      - go tool sqlc generate
+      - go tool github.com/vektra/mockery/v3
+      - templ generate
+      - go build ./...
+      - go test ./...
+      - helm lint ./deploy/helm/ddash
+      - helm template ddash ./deploy/helm/ddash >/tmp/ddash-helm-mvp-render.yaml
+
+  mvp:check:full:
+    desc: Run full automated MVP checks including Playwright
+    cmds:
+      - task mvp:check:quick
+      - task e2e
+
+  mvp:final:tasks:
+    desc: Open final manual MVP checklist path
+    cmds:
+      - ls docs/operations/mvp-final-checklist.md
 
   remote:install-systemd:
     desc: Install DDash as a systemd service on remote host

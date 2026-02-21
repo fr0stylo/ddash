@@ -37,7 +37,6 @@ func (v *ViewRoutes) handleDeploymentFilter(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-
 	deployments, _, err := v.read.GetDeployments(ctx, orgID, env, service)
 	if err != nil {
 		return err
