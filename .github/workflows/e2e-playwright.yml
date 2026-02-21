@@ -35,9 +35,9 @@ jobs:
         env:
           DDASH_ENV: dev
           DDASH_SESSION_SECRET: e2e-session-secret
-          DDASH_DB_PATH: data/e2e
+          DDASH_DB_PATH: tmp/e2e
         run: |
-          mkdir -p data
+          mkdir -p tmp
           go run ./cmd/server > /tmp/ddash-e2e.log 2>&1 &
           echo $! > /tmp/ddash-e2e.pid
 
@@ -55,7 +55,7 @@ jobs:
 
       - name: Seed E2E organization and owner
         run: |
-          sqlite3 "data/e2e.sqlite" "
+          sqlite3 "tmp/e2e.sqlite" "
           INSERT OR IGNORE INTO organizations (id,name,auth_token,join_code,webhook_secret,enabled)
           VALUES (2001,'e2e-org','e2eauthtoken01','e2ejoincode01','e2esecret01',1);
           UPDATE organizations SET

@@ -7,8 +7,8 @@ async function devLogin(page, { email, nickname, name, next = '/' }) {
   await page.goto(`${baseURL}/auth/dev/login?${query}`)
 }
 
-test('deployments and service release analytics render with seeded events', async ({ page }) => {
-  const consoleErrors = []
+function trackConsoleErrors(page) {
+  const errors = []
   page.on('console', (msg) => {
     if (msg.type() !== 'error') {
       return
@@ -17,8 +17,15 @@ test('deployments and service release analytics render with seeded events', asyn
     if (text.includes('favicon.ico')) {
       return
     }
-    consoleErrors.push(text)
+    errors.push(text)
   })
+  return () => {
+    expect(errors).toEqual([])
+  }
+}
+
+test('deployments and service release analytics render with seeded events', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
 
   await page.goto(`${baseURL}/auth/dev/login?email=e2e-admin@example.local&nickname=e2e-admin&name=E2E%20Admin&next=/deployments`)
   await expect(page).toHaveURL(/\/deployments/)
@@ -31,13 +38,14 @@ test('deployments and service release analytics render with seeded events', asyn
   await expect(page.getByRole('heading', { name: 'orders' })).toBeVisible()
   await expect(page.getByText(/deploys \/ 7d/).first()).toBeVisible()
   await expect(page.getByText('Deployment history')).toBeVisible()
-  await expect(page.getByText('Updated from previous release')).toBeVisible()
+  await expect(page.getByText('Updated from previous release').first()).toBeVisible()
   await expect(page.getByText(/^from pkg:generic\/orders@/).first()).toBeVisible()
 
-  expect(consoleErrors).toEqual([])
+  assertNoConsoleErrors()
 })
 
 test('welcome flow and join request approval path work', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
   const suffix = Date.now().toString()
   const joinerEmail = `e2e-joiner-${suffix}@example.local`
   const joinerNick = `e2ejoiner${suffix}`
@@ -62,9 +70,11 @@ test('welcome flow and join request approval path work', async ({ page }) => {
   await page.getByRole('button', { name: 'Approve' }).first().click()
   await expect(page).toHaveURL(/#members/)
   await expect(page.getByText('Join request approved')).toBeVisible()
+  assertNoConsoleErrors()
 })
 
 test('header navigation, settings tabs/save, and logout work', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
   await devLogin(page, {
     email: 'e2e-admin@example.local',
     nickname: 'e2e-admin',
@@ -84,9 +94,11 @@ test('header navigation, settings tabs/save, and logout work', async ({ page }) 
 
   await page.getByRole('link', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/\/login/)
+  assertNoConsoleErrors()
 })
 
 test('welcome screen supports create org and invalid join code feedback', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
   const suffix = Date.now().toString()
   await devLogin(page, {
     email: `e2e-new-${suffix}@example.local`,
@@ -105,9 +117,11 @@ test('welcome screen supports create org and invalid join code feedback', async 
   await page.getByRole('textbox', { name: 'my-team-org' }).fill(`e2e-created-${suffix}-org`)
   await page.getByRole('button', { name: 'Create organization' }).click()
   await expect(page).not.toHaveURL(/\/welcome/)
+  assertNoConsoleErrors()
 })
 
 test('organizations page shows join info and membership actions stay in members tab', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
   const suffix = Date.now().toString()
   const candidateEmail = `e2e-member-${suffix}@example.local`
   const candidateNick = `e2emember${suffix}`
@@ -148,9 +162,11 @@ test('organizations page shows join info and membership actions stay in members 
   await memberRow.getByRole('button', { name: 'Remove' }).click()
   await expect(page).toHaveURL(/#members/)
   await expect(page.getByText('Member removed')).toBeVisible()
+  assertNoConsoleErrors()
 })
 
 test('deployments filter interaction updates rows', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
   await devLogin(page, {
     email: 'e2e-admin@example.local',
     nickname: 'e2e-admin',
@@ -168,4 +184,37 @@ test('deployments filter interaction updates rows', async ({ page }) => {
   const filteredResults = page.locator('#deployment-results').last()
   await expect(filteredResults).toContainText('orders')
   await expect(filteredResults).not.toContainText('billing')
+  assertNoConsoleErrors()
+})
+
+test('join request reject flow works', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
+  const suffix = Date.now().toString()
+  const joinerEmail = `e2e-reject-${suffix}@example.local`
+  const joinerNick = `e2ereject${suffix}`
+  const joinerName = `E2E Reject ${suffix}`
+
+  await devLogin(page, {
+    email: joinerEmail,
+    nickname: joinerNick,
+    name: joinerName,
+    next: '/welcome',
+  })
+  await page.getByRole('textbox', { name: 'join code' }).fill('e2ejoincode01')
+  await page.getByRole('button', { name: 'Request access' }).click()
+  await expect(page.getByText('Join request submitted. Wait for admin approval.')).toBeVisible()
+
+  await devLogin(page, {
+    email: 'e2e-admin@example.local',
+    nickname: 'e2e-admin',
+    name: 'E2E Admin',
+    next: '/organizations',
+  })
+  const pendingRow = page.locator(`xpath=//p[contains(normalize-space(), "${joinerName}")]/ancestor::div[contains(@class,'py-3')][1]`)
+  await expect(pendingRow).toBeVisible()
+  await pendingRow.locator('form[action="/organizations/join-requests/reject"]').getByRole('button', { name: 'Reject' }).click()
+  await expect(page).toHaveURL(/#members/)
+  await expect(page.getByText('Join request rejected')).toBeVisible()
+  await expect(page.getByText(joinerName)).toHaveCount(0)
+  assertNoConsoleErrors()
 })

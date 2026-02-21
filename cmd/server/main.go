@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -27,6 +29,7 @@ func main() {
 
 	srv := server.New(log, publicFS)
 	isLocalEnv := isLocalDevelopmentEnv()
+	port := serverPort()
 
 	defaultDBPath := os.Getenv("DDASH_DB_PATH")
 	database, err := db.New(defaultDBPath)
@@ -53,7 +56,7 @@ func main() {
 
 	callbackURL := os.Getenv("GITHUB_CALLBACK_URL")
 	if callbackURL == "" {
-		callbackURL = "http://localhost:8080/auth/github/callback"
+		callbackURL = fmt.Sprintf("http://localhost:%d/auth/github/callback", port)
 	}
 
 	routes.ConfigureAuth(routes.AuthConfig{
@@ -70,8 +73,22 @@ func main() {
 	srv.RegisterRouter(routes.NewViewRoutes(store, store))
 	srv.RegisterRouter(routes.NewWebhookRoutes(sqlite.NewSharedIngestionStoreFactory(database)))
 
-	slog.Info("Starting server", "port", 8080)
-	slog.Error("Closing server", "error", srv.Start(":8080"))
+	addr := fmt.Sprintf(":%d", port)
+	slog.Info("Starting server", "port", port)
+	slog.Error("Closing server", "error", srv.Start(addr))
+}
+
+func serverPort() int {
+	portValue := strings.TrimSpace(os.Getenv("DDASH_PORT"))
+	if portValue == "" {
+		return 8080
+	}
+	port, err := strconv.Atoi(portValue)
+	if err != nil || port <= 0 || port > 65535 {
+		slog.Warn("Invalid DDASH_PORT, using default", "value", portValue, "default", 8080)
+		return 8080
+	}
+	return port
 }
 
 func isLocalDevelopmentEnv() bool {
