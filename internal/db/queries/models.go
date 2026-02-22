@@ -227,6 +227,17 @@ type ServiceDependency struct {
 	CreatedAt            time.Time
 }
 
+type ServiceDeploymentDuration struct {
+	OrganizationID  int64
+	ServiceName     string
+	Environment     string
+	EventSeq        int64
+	EventTsMs       int64
+	DurationSeconds int64
+	ArtifactID      string
+	CreatedAt       time.Time
+}
+
 type ServiceEnvState struct {
 	OrganizationID   int64
 	ServiceName      string
@@ -239,12 +250,33 @@ type ServiceEnvState struct {
 	UpdatedAt        time.Time
 }
 
+type ServiceEnvironmentDrift struct {
+	OrganizationID  int64
+	ServiceName     string
+	EnvironmentFrom string
+	EnvironmentTo   string
+	ArtifactIDFrom  string
+	ArtifactIDTo    string
+	DriftDetectedAt int64
+	CreatedAt       time.Time
+}
+
 type ServiceField struct {
 	ID        int64
 	ServiceID int64
 	Label     string
 	Value     string
 	SortOrder int64
+}
+
+type ServiceIncidentLink struct {
+	OrganizationID     int64
+	ServiceName        string
+	IncidentID         string
+	IncidentType       string
+	LinkedAt           int64
+	DeploymentEventSeq sql.NullInt64
+	CreatedAt          time.Time
 }
 
 type ServiceInstance struct {
@@ -273,6 +305,35 @@ type ServiceMetadatum struct {
 	Value          string
 	CreatedAt      sql.NullTime
 	UpdatedAt      sql.NullTime
+}
+
+type ServicePipelineStatsDaily struct {
+	OrganizationID         int64
+	ServiceName            string
+	DayUtc                 string
+	PipelineStartedCount   int64
+	PipelineSucceededCount int64
+	PipelineFailedCount    int64
+	TotalDurationSeconds   int64
+	AvgDurationSeconds     float64
+	UpdatedAt              time.Time
+}
+
+type ServiceRedeploymentStat struct {
+	OrganizationID int64
+	ServiceName    string
+	DayUtc         string
+	RedeployCount  int64
+	UpdatedAt      time.Time
+}
+
+type ServiceThroughputStat struct {
+	OrganizationID   int64
+	ServiceName      string
+	WeekStart        string
+	ChangesCount     int64
+	DeploymentsCount int64
+	UpdatedAt        time.Time
 }
 
 type User struct {

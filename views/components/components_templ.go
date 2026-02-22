@@ -218,6 +218,61 @@ func ServiceFieldsJSON(fields []ServiceField) string {
 	return fmt.Sprintf("[%s]", strings.Join(parts, ","))
 }
 
+type ServiceMetricsData struct {
+	PipelineStats       PipelineStatsData
+	DeploymentDurations DurationStatsData
+	DriftCount          int64
+	RedeploymentRate    RedeploymentData
+	Throughput          ThroughputData
+	ArtifactAges        []ArtifactAgeData
+	Comprehensive       ComprehensiveData
+}
+
+type PipelineStatsData struct {
+	PipelineStartedCount   int64
+	PipelineSucceededCount int64
+	PipelineFailedCount    int64
+	TotalDurationSeconds   int64
+	AvgDurationSeconds     float64
+}
+
+type DurationStatsData struct {
+	SampleCount         int64
+	AvgDurationSeconds  float64
+	MinDurationSeconds  int64
+	MaxDurationSeconds  int64
+	LastDurationSeconds int64
+}
+
+type RedeploymentData struct {
+	RedeployCount int64
+	DeployDays    int64
+	RedeployRate  float64
+}
+
+type ThroughputData struct {
+	WeekStart        string
+	ChangesCount     int64
+	DeploymentsCount int64
+}
+
+type ArtifactAgeData struct {
+	Environment   string
+	ArtifactID    string
+	AgeSeconds    int64
+	LastEventTsMs int64
+}
+
+type ComprehensiveData struct {
+	LeadTimeSeconds              float64
+	DeploymentFrequency30d       int64
+	ChangeFailureRate            float64
+	AvgDeploymentDurationSeconds float64
+	PipelineSuccessCount30d      int64
+	PipelineFailureCount30d      int64
+	ActiveDeployDays30d          int64
+}
+
 func ComponentsNoop() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

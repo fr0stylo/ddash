@@ -24,6 +24,7 @@ const (
 	featureShowIntegrationTypeBadges   = "show_integration_type_badges"
 	featureShowServiceDetailInsights   = "show_service_detail_insights"
 	featureShowServiceDependencies     = "show_service_dependencies"
+	featureShowServiceDeliveryMetrics  = "show_service_delivery_metrics"
 
 	prefDeploymentRetentionDays = "deployment_retention_days"
 	prefDefaultDashboardView    = "default_dashboard_view"
@@ -58,6 +59,7 @@ type OrganizationSettings struct {
 	ShowIntegrationTypeBadges   bool
 	ShowServiceDetailInsights   bool
 	ShowServiceDependencies     bool
+	ShowServiceDeliveryMetrics  bool
 	DeploymentRetentionDays     int
 	DefaultDashboardView        string
 	StatusSemanticsMode         string
@@ -90,6 +92,7 @@ type OrganizationSettingsUpdate struct {
 	ShowIntegrationTypeBadges   bool
 	ShowServiceDetailInsights   bool
 	ShowServiceDependencies     bool
+	ShowServiceDeliveryMetrics  bool
 	DeploymentRetentionDays     int
 	DefaultDashboardView        string
 	StatusSemanticsMode         string
@@ -136,6 +139,7 @@ func (s *OrganizationConfigService) GetSettings(ctx context.Context, organizatio
 		featureShowIntegrationTypeBadges:   true,
 		featureShowServiceDetailInsights:   true,
 		featureShowServiceDependencies:     true,
+		featureShowServiceDeliveryMetrics:  true,
 	}
 	for _, feature := range features {
 		key := strings.ToLower(strings.TrimSpace(feature.Key))
@@ -187,6 +191,7 @@ func (s *OrganizationConfigService) GetSettings(ctx context.Context, organizatio
 		ShowIntegrationTypeBadges:   featureFlags[featureShowIntegrationTypeBadges],
 		ShowServiceDetailInsights:   featureFlags[featureShowServiceDetailInsights],
 		ShowServiceDependencies:     featureFlags[featureShowServiceDependencies],
+		ShowServiceDeliveryMetrics:  featureFlags[featureShowServiceDeliveryMetrics],
 		DeploymentRetentionDays:     deploymentRetentionDays,
 		DefaultDashboardView:        defaultDashboardView,
 		StatusSemanticsMode:         statusSemanticsMode,
@@ -231,6 +236,7 @@ func (s *OrganizationConfigService) UpdateSettings(ctx context.Context, organiza
 		ShowOnboardingHints:         update.ShowOnboardingHints,
 		ShowIntegrationTypeBadges:   update.ShowIntegrationTypeBadges,
 		ShowServiceDetailInsights:   update.ShowServiceDetailInsights,
+		ShowServiceDeliveryMetrics:  update.ShowServiceDeliveryMetrics,
 		ShowServiceDependencies:     update.ShowServiceDependencies,
 		DeploymentRetentionDays:     update.DeploymentRetentionDays,
 		DefaultDashboardView:        update.DefaultDashboardView,

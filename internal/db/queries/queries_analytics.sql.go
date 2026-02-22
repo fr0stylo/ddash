@@ -67,6 +67,368 @@ func (q *Queries) CountEventStoreBySubjectType(ctx context.Context, subjectType 
 	return count, err
 }
 
+const getArtifactAgeByEnvironment = `-- name: GetArtifactAgeByEnvironment :many
+SELECT
+  environment,
+  latest_artifact_id,
+  (strftime('%s', 'now') * 1000 - latest_event_ts_ms) / 1000 AS age_seconds,
+  latest_event_ts_ms
+FROM service_env_state
+WHERE organization_id = ?1
+  AND service_name = ?2
+  AND latest_artifact_id != ''
+`
+
+type GetArtifactAgeByEnvironmentParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+type GetArtifactAgeByEnvironmentRow struct {
+	Environment      string
+	LatestArtifactID string
+	AgeSeconds       int64
+	LatestEventTsMs  int64
+}
+
+// Artifact Age (Time since last deployment per environment)
+func (q *Queries) GetArtifactAgeByEnvironment(ctx context.Context, arg GetArtifactAgeByEnvironmentParams) ([]GetArtifactAgeByEnvironmentRow, error) {
+	rows, err := q.db.QueryContext(ctx, getArtifactAgeByEnvironment, arg.OrganizationID, arg.ServiceName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetArtifactAgeByEnvironmentRow
+	for rows.Next() {
+		var i GetArtifactAgeByEnvironmentRow
+		if err := rows.Scan(
+			&i.Environment,
+			&i.LatestArtifactID,
+			&i.AgeSeconds,
+			&i.LatestEventTsMs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getComprehensiveDeliveryMetrics = `-- name: GetComprehensiveDeliveryMetrics :one
+SELECT
+  (SELECT COALESCE(AVG(lead_seconds), 0)
+   FROM (
+     SELECT (d.deploy_ts_ms - (
+       SELECT MAX(c.change_ts_ms)
+       FROM (
+         SELECT es.event_ts_ms AS change_ts_ms,
+           CASE
+             WHEN instr(json_extract(es.raw_event_json, '$.subject.content.artifactId'), 'pkg:generic/') = 1
+              AND instr(substr(json_extract(es.raw_event_json, '$.subject.content.artifactId'), 13), '@') > 0
+             THEN substr(
+               json_extract(es.raw_event_json, '$.subject.content.artifactId'),
+               13,
+               instr(substr(json_extract(es.raw_event_json, '$.subject.content.artifactId'), 13), '@') - 1
+             )
+             ELSE ''
+           END AS service_name
+         FROM event_store es
+         WHERE es.organization_id = ?1
+           AND es.subject_type = 'change'
+           AND es.event_ts_ms >= ?2
+       ) c
+       WHERE c.service_name = d.service_name
+         AND c.change_ts_ms <= d.deploy_ts_ms
+     )) / 1000 AS lead_seconds
+     FROM (
+       SELECT
+         es.event_ts_ms AS deploy_ts_ms,
+         CASE
+           WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+           ELSE es.subject_id
+         END AS service_name
+       FROM event_store es
+       WHERE es.organization_id = ?1
+         AND es.subject_type = 'service'
+         AND es.event_type LIKE 'dev.cdevents.service.deployed.%'
+         AND es.event_ts_ms >= ?2
+     ) d
+     WHERE d.service_name != ''
+   )) AS lead_time_seconds,
+
+  (SELECT COALESCE(SUM(deploy_success_count), 0)
+   FROM service_delivery_stats_daily
+   WHERE organization_id = ?1
+     AND day_utc >= date('now', '-30 day')) AS deployment_frequency_30d,
+
+  (SELECT CASE
+     WHEN (SELECT SUM(deploy_success_count + deploy_failure_count) FROM service_delivery_stats_daily
+           WHERE organization_id = ?1
+             AND day_utc >= date('now', '-30 day')) > 0
+     THEN CAST((SELECT SUM(deploy_failure_count + rollback_count) FROM service_delivery_stats_daily
+                WHERE organization_id = ?1
+                  AND day_utc >= date('now', '-30 day')) AS REAL) /
+          (SELECT SUM(deploy_success_count + deploy_failure_count) FROM service_delivery_stats_daily
+           WHERE organization_id = ?1
+             AND day_utc >= date('now', '-30 day'))
+     ELSE 0
+   END) AS change_failure_rate,
+
+  (SELECT COALESCE(AVG(duration_seconds), 0)
+   FROM service_deployment_durations
+   WHERE organization_id = ?1
+     AND event_ts_ms >= ?2) AS avg_deployment_duration_seconds,
+
+  (SELECT COALESCE(SUM(pipeline_succeeded_count), 0)
+   FROM service_pipeline_stats_daily
+   WHERE organization_id = ?1
+     AND day_utc >= date('now', '-30 day')) AS pipeline_success_count_30d,
+
+  (SELECT COALESCE(SUM(pipeline_failed_count), 0)
+   FROM service_pipeline_stats_daily
+   WHERE organization_id = ?1
+     AND day_utc >= date('now', '-30 day')) AS pipeline_failure_count_30d,
+
+  (SELECT COUNT(DISTINCT day_utc)
+   FROM service_delivery_stats_daily
+   WHERE organization_id = ?1
+     AND day_utc >= date('now', '-30 day')
+     AND deploy_success_count > 0) AS active_deploy_days_30d
+`
+
+type GetComprehensiveDeliveryMetricsParams struct {
+	OrganizationID int64
+	SinceMs        int64
+}
+
+type GetComprehensiveDeliveryMetricsRow struct {
+	LeadTimeSeconds              interface{}
+	DeploymentFrequency30d       interface{}
+	ChangeFailureRate            int64
+	AvgDeploymentDurationSeconds interface{}
+	PipelineSuccessCount30d      interface{}
+	PipelineFailureCount30d      interface{}
+	ActiveDeployDays30d          int64
+}
+
+// Comprehensive Delivery Metrics Summary
+func (q *Queries) GetComprehensiveDeliveryMetrics(ctx context.Context, arg GetComprehensiveDeliveryMetricsParams) (GetComprehensiveDeliveryMetricsRow, error) {
+	row := q.db.QueryRowContext(ctx, getComprehensiveDeliveryMetrics, arg.OrganizationID, arg.SinceMs)
+	var i GetComprehensiveDeliveryMetricsRow
+	err := row.Scan(
+		&i.LeadTimeSeconds,
+		&i.DeploymentFrequency30d,
+		&i.ChangeFailureRate,
+		&i.AvgDeploymentDurationSeconds,
+		&i.PipelineSuccessCount30d,
+		&i.PipelineFailureCount30d,
+		&i.ActiveDeployDays30d,
+	)
+	return i, err
+}
+
+const getDeploymentDurationStats = `-- name: GetDeploymentDurationStats :one
+SELECT
+  COUNT(*) AS sample_count,
+  COALESCE(AVG(duration_seconds), 0) AS avg_duration_seconds,
+  COALESCE(MIN(duration_seconds), 0) AS min_duration_seconds,
+  COALESCE(MAX(duration_seconds), 0) AS max_duration_seconds,
+  COALESCE(
+    (SELECT duration_seconds FROM service_deployment_durations d2
+     WHERE d2.organization_id = service_deployment_durations.organization_id
+       AND d2.service_name = service_deployment_durations.service_name
+       AND d2.environment = ?1
+     ORDER BY event_ts_ms DESC LIMIT 1),
+    0
+  ) AS last_duration_seconds
+FROM service_deployment_durations
+WHERE service_deployment_durations.organization_id = ?2
+  AND service_deployment_durations.service_name = ?3
+  AND service_deployment_durations.event_ts_ms >= ?4
+`
+
+type GetDeploymentDurationStatsParams struct {
+	Environment    string
+	OrganizationID int64
+	ServiceName    string
+	SinceMs        int64
+}
+
+type GetDeploymentDurationStatsRow struct {
+	SampleCount         int64
+	AvgDurationSeconds  interface{}
+	MinDurationSeconds  interface{}
+	MaxDurationSeconds  interface{}
+	LastDurationSeconds interface{}
+}
+
+func (q *Queries) GetDeploymentDurationStats(ctx context.Context, arg GetDeploymentDurationStatsParams) (GetDeploymentDurationStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentDurationStats,
+		arg.Environment,
+		arg.OrganizationID,
+		arg.ServiceName,
+		arg.SinceMs,
+	)
+	var i GetDeploymentDurationStatsRow
+	err := row.Scan(
+		&i.SampleCount,
+		&i.AvgDurationSeconds,
+		&i.MinDurationSeconds,
+		&i.MaxDurationSeconds,
+		&i.LastDurationSeconds,
+	)
+	return i, err
+}
+
+const getEnvironmentDriftCount = `-- name: GetEnvironmentDriftCount :one
+SELECT COUNT(*) AS drift_count
+FROM service_environment_drift
+WHERE organization_id = ?1
+  AND service_name = ?2
+  AND drift_detected_at >= ?3
+`
+
+type GetEnvironmentDriftCountParams struct {
+	OrganizationID int64
+	ServiceName    string
+	SinceMs        int64
+}
+
+func (q *Queries) GetEnvironmentDriftCount(ctx context.Context, arg GetEnvironmentDriftCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getEnvironmentDriftCount, arg.OrganizationID, arg.ServiceName, arg.SinceMs)
+	var drift_count int64
+	err := row.Scan(&drift_count)
+	return drift_count, err
+}
+
+const getMTTR = `-- name: GetMTTR :one
+WITH incident_resolutions AS (
+  SELECT
+    il.service_name,
+    il.incident_id,
+    il.linked_at AS incident_time_ms,
+    (SELECT es.event_ts_ms FROM event_store es
+     WHERE es.organization_id = il.organization_id
+       AND es.subject_id LIKE '%' || il.service_name || '%'
+       AND es.event_type LIKE 'dev.cdevents.service.deployed.%'
+       AND es.event_ts_ms > il.linked_at
+     ORDER BY es.event_ts_ms ASC LIMIT 1) AS resolved_at_ms
+  FROM service_incident_links il
+  WHERE il.organization_id = ?1
+    AND il.linked_at >= ?2
+)
+SELECT
+  COUNT(*) AS incident_count,
+  COALESCE(AVG(resolved_at_ms - incident_time_ms), 0) / 1000 AS mttr_seconds,
+  COALESCE(MIN(resolved_at_ms - incident_time_ms), 0) / 1000 AS mttd_seconds,
+  COALESCE(MAX(resolved_at_ms - incident_time_ms), 0) / 1000 AS mtte_seconds
+FROM incident_resolutions
+WHERE resolved_at_ms IS NOT NULL
+`
+
+type GetMTTRParams struct {
+	OrganizationID int64
+	SinceMs        int64
+}
+
+type GetMTTRRow struct {
+	IncidentCount int64
+	MttrSeconds   int64
+	MttdSeconds   int64
+	MtteSeconds   int64
+}
+
+func (q *Queries) GetMTTR(ctx context.Context, arg GetMTTRParams) (GetMTTRRow, error) {
+	row := q.db.QueryRowContext(ctx, getMTTR, arg.OrganizationID, arg.SinceMs)
+	var i GetMTTRRow
+	err := row.Scan(
+		&i.IncidentCount,
+		&i.MttrSeconds,
+		&i.MttdSeconds,
+		&i.MtteSeconds,
+	)
+	return i, err
+}
+
+const getPipelineStats30d = `-- name: GetPipelineStats30d :one
+SELECT
+  COALESCE(SUM(pipeline_started_count), 0) AS pipeline_started_count,
+  COALESCE(SUM(pipeline_succeeded_count), 0) AS pipeline_succeeded_count,
+  COALESCE(SUM(pipeline_failed_count), 0) AS pipeline_failed_count,
+  COALESCE(SUM(total_duration_seconds), 0) AS total_duration_seconds,
+  CASE
+    WHEN SUM(pipeline_started_count) > 0 THEN CAST(SUM(total_duration_seconds) AS REAL) / SUM(pipeline_started_count)
+    ELSE 0
+  END AS avg_duration_seconds
+FROM service_pipeline_stats_daily
+WHERE organization_id = ?1
+  AND service_name = ?2
+  AND day_utc >= date('now', '-30 day')
+`
+
+type GetPipelineStats30dParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+type GetPipelineStats30dRow struct {
+	PipelineStartedCount   interface{}
+	PipelineSucceededCount interface{}
+	PipelineFailedCount    interface{}
+	TotalDurationSeconds   interface{}
+	AvgDurationSeconds     int64
+}
+
+func (q *Queries) GetPipelineStats30d(ctx context.Context, arg GetPipelineStats30dParams) (GetPipelineStats30dRow, error) {
+	row := q.db.QueryRowContext(ctx, getPipelineStats30d, arg.OrganizationID, arg.ServiceName)
+	var i GetPipelineStats30dRow
+	err := row.Scan(
+		&i.PipelineStartedCount,
+		&i.PipelineSucceededCount,
+		&i.PipelineFailedCount,
+		&i.TotalDurationSeconds,
+		&i.AvgDurationSeconds,
+	)
+	return i, err
+}
+
+const getRedeploymentRate30d = `-- name: GetRedeploymentRate30d :one
+SELECT
+  COALESCE(SUM(redeploy_count), 0) AS redeploy_count,
+  (SELECT COUNT(*) FROM service_delivery_stats_daily d
+   WHERE d.organization_id = ?1
+     AND d.service_name = ?2
+     AND d.day_utc >= date('now', '-30 day')
+     AND d.deploy_success_count > 0) AS deploy_days
+FROM service_redeployment_stats
+WHERE organization_id = ?1
+  AND service_name = ?2
+  AND day_utc >= date('now', '-30 day')
+`
+
+type GetRedeploymentRate30dParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+type GetRedeploymentRate30dRow struct {
+	RedeployCount interface{}
+	DeployDays    int64
+}
+
+func (q *Queries) GetRedeploymentRate30d(ctx context.Context, arg GetRedeploymentRate30dParams) (GetRedeploymentRate30dRow, error) {
+	row := q.db.QueryRowContext(ctx, getRedeploymentRate30d, arg.OrganizationID, arg.ServiceName)
+	var i GetRedeploymentRate30dRow
+	err := row.Scan(&i.RedeployCount, &i.DeployDays)
+	return i, err
+}
+
 const getServiceCurrentState = `-- name: GetServiceCurrentState :one
 SELECT
   latest_status,
@@ -132,6 +494,280 @@ func (q *Queries) GetServiceDeliveryStats30d(ctx context.Context, arg GetService
 	return i, err
 }
 
+const getThroughputStats = `-- name: GetThroughputStats :one
+SELECT
+  COALESCE(SUM(changes_count), 0) AS changes_count,
+  COALESCE(SUM(deployments_count), 0) AS deployments_count,
+  CASE
+    WHEN COUNT(*) > 0 THEN CAST(SUM(deployments_count) AS REAL) / COUNT(*)
+    ELSE 0
+  END AS avg_deployments_per_week
+FROM service_throughput_stats
+WHERE organization_id = ?1
+  AND service_name = ?2
+  AND week_start >= date('now', '-12 week')
+`
+
+type GetThroughputStatsParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+type GetThroughputStatsRow struct {
+	ChangesCount          interface{}
+	DeploymentsCount      interface{}
+	AvgDeploymentsPerWeek int64
+}
+
+func (q *Queries) GetThroughputStats(ctx context.Context, arg GetThroughputStatsParams) (GetThroughputStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getThroughputStats, arg.OrganizationID, arg.ServiceName)
+	var i GetThroughputStatsRow
+	err := row.Scan(&i.ChangesCount, &i.DeploymentsCount, &i.AvgDeploymentsPerWeek)
+	return i, err
+}
+
+const insertDeploymentDuration = `-- name: InsertDeploymentDuration :exec
+INSERT INTO service_deployment_durations (
+  organization_id,
+  service_name,
+  environment,
+  event_seq,
+  event_ts_ms,
+  duration_seconds,
+  artifact_id
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  COALESCE(NULLIF(json_extract(es.raw_event_json, '$.subject.content.environment.id'), ''), 'unknown'),
+  es.seq,
+  es.event_ts_ms,
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.durationSeconds'), 0),
+  COALESCE(json_extract(es.raw_event_json, '$.subject.content.artifactId'), '')
+FROM event_store es
+WHERE es.organization_id = ?1
+  AND es.seq = ?2
+  AND es.subject_type = 'service'
+  AND es.event_type LIKE 'dev.cdevents.service.deployed.%'
+ON CONFLICT(organization_id, service_name, environment, event_seq) DO NOTHING
+`
+
+type InsertDeploymentDurationParams struct {
+	OrganizationID int64
+	Seq            int64
+}
+
+// Deployment Duration Metrics
+func (q *Queries) InsertDeploymentDuration(ctx context.Context, arg InsertDeploymentDurationParams) error {
+	_, err := q.db.ExecContext(ctx, insertDeploymentDuration, arg.OrganizationID, arg.Seq)
+	return err
+}
+
+const insertEnvironmentDrift = `-- name: InsertEnvironmentDrift :exec
+INSERT INTO service_environment_drift (
+  organization_id,
+  service_name,
+  environment_from,
+  environment_to,
+  artifact_id_from,
+  artifact_id_to,
+  drift_detected_at
+)
+SELECT
+  ses1.organization_id,
+  ses1.service_name,
+  ses1.environment,
+  ses2.environment,
+  ses1.latest_artifact_id,
+  ses2.latest_artifact_id,
+  strftime('%s', 'now') * 1000
+FROM service_env_state ses1
+JOIN service_env_state ses2 ON
+  ses1.organization_id = ses2.organization_id
+  AND ses1.service_name = ses2.service_name
+  AND ses1.environment != ses2.environment
+  AND ses1.latest_artifact_id != ses2.latest_artifact_id
+WHERE ses1.organization_id = ?1
+  AND ses1.service_name = ?2
+  AND ses1.latest_artifact_id != ''
+  AND ses2.latest_artifact_id != ''
+ON CONFLICT(organization_id, service_name, environment_from, environment_to, drift_detected_at) DO NOTHING
+`
+
+type InsertEnvironmentDriftParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+// Environment Drift Detection
+func (q *Queries) InsertEnvironmentDrift(ctx context.Context, arg InsertEnvironmentDriftParams) error {
+	_, err := q.db.ExecContext(ctx, insertEnvironmentDrift, arg.OrganizationID, arg.ServiceName)
+	return err
+}
+
+const insertIncidentLink = `-- name: InsertIncidentLink :exec
+INSERT INTO service_incident_links (
+  organization_id,
+  service_name,
+  incident_id,
+  incident_type,
+  linked_at,
+  deployment_event_seq
+)
+VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5,
+  ?6
+)
+ON CONFLICT(organization_id, service_name, incident_id) DO NOTHING
+`
+
+type InsertIncidentLinkParams struct {
+	OrganizationID     int64
+	ServiceName        string
+	IncidentID         string
+	IncidentType       string
+	LinkedAt           int64
+	DeploymentEventSeq sql.NullInt64
+}
+
+// Incident Links (for MTTR calculation)
+func (q *Queries) InsertIncidentLink(ctx context.Context, arg InsertIncidentLinkParams) error {
+	_, err := q.db.ExecContext(ctx, insertIncidentLink,
+		arg.OrganizationID,
+		arg.ServiceName,
+		arg.IncidentID,
+		arg.IncidentType,
+		arg.LinkedAt,
+		arg.DeploymentEventSeq,
+	)
+	return err
+}
+
+const listDeploymentDurationsByEnvironment = `-- name: ListDeploymentDurationsByEnvironment :many
+SELECT
+  environment,
+  COUNT(*) AS sample_count,
+  COALESCE(AVG(duration_seconds), 0) AS avg_duration_seconds,
+  COALESCE(
+    (SELECT duration_seconds FROM service_deployment_durations d2
+     WHERE d2.organization_id = service_deployment_durations.organization_id
+       AND d2.service_name = service_deployment_durations.service_name
+       AND d2.environment = service_deployment_durations.environment
+     ORDER BY event_ts_ms DESC LIMIT 1),
+    0
+  ) AS last_duration_seconds
+FROM service_deployment_durations
+WHERE service_deployment_durations.organization_id = ?1
+  AND service_deployment_durations.service_name = ?2
+  AND service_deployment_durations.event_ts_ms >= ?3
+GROUP BY service_deployment_durations.environment
+`
+
+type ListDeploymentDurationsByEnvironmentParams struct {
+	OrganizationID int64
+	ServiceName    string
+	SinceMs        int64
+}
+
+type ListDeploymentDurationsByEnvironmentRow struct {
+	Environment         string
+	SampleCount         int64
+	AvgDurationSeconds  interface{}
+	LastDurationSeconds interface{}
+}
+
+func (q *Queries) ListDeploymentDurationsByEnvironment(ctx context.Context, arg ListDeploymentDurationsByEnvironmentParams) ([]ListDeploymentDurationsByEnvironmentRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDeploymentDurationsByEnvironment, arg.OrganizationID, arg.ServiceName, arg.SinceMs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDeploymentDurationsByEnvironmentRow
+	for rows.Next() {
+		var i ListDeploymentDurationsByEnvironmentRow
+		if err := rows.Scan(
+			&i.Environment,
+			&i.SampleCount,
+			&i.AvgDurationSeconds,
+			&i.LastDurationSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnvironmentDrifts = `-- name: ListEnvironmentDrifts :many
+SELECT
+  environment_from,
+  environment_to,
+  artifact_id_from,
+  artifact_id_to,
+  drift_detected_at
+FROM service_environment_drift
+WHERE organization_id = ?1
+  AND service_name = ?2
+ORDER BY drift_detected_at DESC
+LIMIT ?3
+`
+
+type ListEnvironmentDriftsParams struct {
+	OrganizationID int64
+	ServiceName    string
+	Limit          int64
+}
+
+type ListEnvironmentDriftsRow struct {
+	EnvironmentFrom string
+	EnvironmentTo   string
+	ArtifactIDFrom  string
+	ArtifactIDTo    string
+	DriftDetectedAt int64
+}
+
+func (q *Queries) ListEnvironmentDrifts(ctx context.Context, arg ListEnvironmentDriftsParams) ([]ListEnvironmentDriftsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEnvironmentDrifts, arg.OrganizationID, arg.ServiceName, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEnvironmentDriftsRow
+	for rows.Next() {
+		var i ListEnvironmentDriftsRow
+		if err := rows.Scan(
+			&i.EnvironmentFrom,
+			&i.EnvironmentTo,
+			&i.ArtifactIDFrom,
+			&i.ArtifactIDTo,
+			&i.DriftDetectedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEventStoreDailyVolume = `-- name: ListEventStoreDailyVolume :many
 SELECT
   date(datetime(event_ts_ms / 1000, 'unixepoch')) AS day,
@@ -165,6 +801,60 @@ func (q *Queries) ListEventStoreDailyVolume(ctx context.Context, arg ListEventSt
 	for rows.Next() {
 		var i ListEventStoreDailyVolumeRow
 		if err := rows.Scan(&i.Day, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIncidentLinks = `-- name: ListIncidentLinks :many
+SELECT
+  incident_id,
+  incident_type,
+  linked_at,
+  deployment_event_seq
+FROM service_incident_links
+WHERE organization_id = ?1
+  AND service_name = ?2
+ORDER BY linked_at DESC
+LIMIT ?3
+`
+
+type ListIncidentLinksParams struct {
+	OrganizationID int64
+	ServiceName    string
+	Limit          int64
+}
+
+type ListIncidentLinksRow struct {
+	IncidentID         string
+	IncidentType       string
+	LinkedAt           int64
+	DeploymentEventSeq sql.NullInt64
+}
+
+func (q *Queries) ListIncidentLinks(ctx context.Context, arg ListIncidentLinksParams) ([]ListIncidentLinksRow, error) {
+	rows, err := q.db.QueryContext(ctx, listIncidentLinks, arg.OrganizationID, arg.ServiceName, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListIncidentLinksRow
+	for rows.Next() {
+		var i ListIncidentLinksRow
+		if err := rows.Scan(
+			&i.IncidentID,
+			&i.IncidentType,
+			&i.LinkedAt,
+			&i.DeploymentEventSeq,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -324,4 +1014,171 @@ func (q *Queries) ListServiceLeadTimeSamplesFromEvents(ctx context.Context, arg 
 		return nil, err
 	}
 	return items, nil
+}
+
+const listWeeklyThroughput = `-- name: ListWeeklyThroughput :many
+SELECT
+  week_start,
+  changes_count,
+  deployments_count
+FROM service_throughput_stats
+WHERE organization_id = ?1
+  AND service_name = ?2
+ORDER BY week_start DESC
+LIMIT ?3
+`
+
+type ListWeeklyThroughputParams struct {
+	OrganizationID int64
+	ServiceName    string
+	Limit          int64
+}
+
+type ListWeeklyThroughputRow struct {
+	WeekStart        string
+	ChangesCount     int64
+	DeploymentsCount int64
+}
+
+func (q *Queries) ListWeeklyThroughput(ctx context.Context, arg ListWeeklyThroughputParams) ([]ListWeeklyThroughputRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWeeklyThroughput, arg.OrganizationID, arg.ServiceName, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWeeklyThroughputRow
+	for rows.Next() {
+		var i ListWeeklyThroughputRow
+		if err := rows.Scan(&i.WeekStart, &i.ChangesCount, &i.DeploymentsCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertPipelineStatsFromEvent = `-- name: UpsertPipelineStatsFromEvent :exec
+INSERT INTO service_pipeline_stats_daily (
+  organization_id,
+  service_name,
+  day_utc,
+  pipeline_started_count,
+  pipeline_succeeded_count,
+  pipeline_failed_count,
+  total_duration_seconds,
+  avg_duration_seconds
+)
+SELECT
+  es.organization_id,
+  COALESCE(
+    NULLIF(json_extract(es.raw_event_json, '$.subject.content.service'), ''),
+    CASE
+      WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+      ELSE es.subject_id
+    END
+  ) AS service_name,
+  date(datetime(es.event_ts_ms / 1000, 'unixepoch')) AS day_utc,
+  CASE WHEN es.event_type LIKE 'dev.cdevents.pipeline.run.started.%' THEN 1 ELSE 0 END,
+  CASE WHEN es.event_type LIKE 'dev.cdevents.pipeline.run.succeeded.%' THEN 1 ELSE 0 END,
+  CASE WHEN es.event_type LIKE 'dev.cdevents.pipeline.run.failed.%' THEN 1 ELSE 0 END,
+  0,
+  0
+FROM event_store es
+WHERE es.organization_id = ?1
+  AND es.seq = ?2
+  AND es.subject_type = 'pipeline'
+ON CONFLICT(organization_id, service_name, day_utc) DO UPDATE SET
+  pipeline_started_count = service_pipeline_stats_daily.pipeline_started_count + excluded.pipeline_started_count,
+  pipeline_succeeded_count = service_pipeline_stats_daily.pipeline_succeeded_count + excluded.pipeline_succeeded_count,
+  pipeline_failed_count = service_pipeline_stats_daily.pipeline_failed_count + excluded.pipeline_failed_count,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertPipelineStatsFromEventParams struct {
+	OrganizationID int64
+	Seq            int64
+}
+
+// Pipeline Execution Metrics
+func (q *Queries) UpsertPipelineStatsFromEvent(ctx context.Context, arg UpsertPipelineStatsFromEventParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPipelineStatsFromEvent, arg.OrganizationID, arg.Seq)
+	return err
+}
+
+const upsertRedeploymentStats = `-- name: UpsertRedeploymentStats :exec
+INSERT INTO service_redeployment_stats (
+  organization_id,
+  service_name,
+  day_utc,
+  redeploy_count
+)
+SELECT
+  ?1 AS organization_id,
+  ?2 AS service_name,
+  ?3 AS day_utc,
+  CASE WHEN ?4 = '1' THEN 1 ELSE 0 END AS redeploy_count
+ON CONFLICT(organization_id, service_name, day_utc) DO UPDATE SET
+  redeploy_count = service_redeployment_stats.redeploy_count + excluded.redeploy_count,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertRedeploymentStatsParams struct {
+	OrganizationID int64
+	ServiceName    string
+	DayUtc         string
+	SameArtifact   interface{}
+}
+
+// Re-deployment Rate Metrics
+func (q *Queries) UpsertRedeploymentStats(ctx context.Context, arg UpsertRedeploymentStatsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertRedeploymentStats,
+		arg.OrganizationID,
+		arg.ServiceName,
+		arg.DayUtc,
+		arg.SameArtifact,
+	)
+	return err
+}
+
+const upsertThroughputStats = `-- name: UpsertThroughputStats :exec
+INSERT INTO service_throughput_stats (
+  organization_id,
+  service_name,
+  week_start,
+  changes_count,
+  deployments_count
+)
+SELECT
+  es.organization_id,
+  CASE
+    WHEN instr(es.subject_id, '/') > 0 THEN substr(es.subject_id, instr(es.subject_id, '/') + 1)
+    ELSE es.subject_id
+  END AS service_name,
+  date(datetime((es.event_ts_ms / 1000) - (strftime('%w', datetime(es.event_ts_ms / 1000, 'unixepoch')) * 86400), 'unixepoch')) AS week_start,
+  CASE WHEN es.subject_type = 'change' THEN 1 ELSE 0 END,
+  CASE WHEN es.event_type LIKE 'dev.cdevents.service.deployed.%' THEN 1 ELSE 0 END
+FROM event_store es
+WHERE es.organization_id = ?1
+  AND es.seq = ?2
+ON CONFLICT(organization_id, service_name, week_start) DO UPDATE SET
+  changes_count = service_throughput_stats.changes_count + excluded.changes_count,
+  deployments_count = service_throughput_stats.deployments_count + excluded.deployments_count,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertThroughputStatsParams struct {
+	OrganizationID int64
+	Seq            int64
+}
+
+// Throughput Metrics (Changes per week)
+func (q *Queries) UpsertThroughputStats(ctx context.Context, arg UpsertThroughputStatsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertThroughputStats, arg.OrganizationID, arg.Seq)
+	return err
 }

@@ -61,6 +61,18 @@ type storeDatabase interface {
 	ListServiceChangeLinksRecent(ctx context.Context, params queries.ListServiceChangeLinksRecentParams) ([]queries.ListServiceChangeLinksRecentRow, error)
 	ListServiceLeadTimeSamplesFromEvents(ctx context.Context, params queries.ListServiceLeadTimeSamplesFromEventsParams) ([]queries.ListServiceLeadTimeSamplesFromEventsRow, error)
 
+	GetPipelineStats30d(ctx context.Context, params queries.GetPipelineStats30dParams) (queries.GetPipelineStats30dRow, error)
+	GetDeploymentDurationStats(ctx context.Context, params queries.GetDeploymentDurationStatsParams) (queries.GetDeploymentDurationStatsRow, error)
+	GetEnvironmentDriftCount(ctx context.Context, params queries.GetEnvironmentDriftCountParams) (int64, error)
+	ListEnvironmentDrifts(ctx context.Context, params queries.ListEnvironmentDriftsParams) ([]queries.ListEnvironmentDriftsRow, error)
+	GetRedeploymentRate30d(ctx context.Context, params queries.GetRedeploymentRate30dParams) (queries.GetRedeploymentRate30dRow, error)
+	GetThroughputStats(ctx context.Context, params queries.GetThroughputStatsParams) (queries.GetThroughputStatsRow, error)
+	ListWeeklyThroughput(ctx context.Context, params queries.ListWeeklyThroughputParams) ([]queries.ListWeeklyThroughputRow, error)
+	GetArtifactAgeByEnvironment(ctx context.Context, params queries.GetArtifactAgeByEnvironmentParams) ([]queries.GetArtifactAgeByEnvironmentRow, error)
+	GetMTTR(ctx context.Context, params queries.GetMTTRParams) (queries.GetMTTRRow, error)
+	ListIncidentLinks(ctx context.Context, params queries.ListIncidentLinksParams) ([]queries.ListIncidentLinksRow, error)
+	GetComprehensiveDeliveryMetrics(ctx context.Context, params queries.GetComprehensiveDeliveryMetricsParams) (queries.GetComprehensiveDeliveryMetricsRow, error)
+
 	ListServiceMetadataByService(ctx context.Context, params queries.ListServiceMetadataByServiceParams) ([]queries.ListServiceMetadataByServiceRow, error)
 	ListServiceMetadataByOrganization(ctx context.Context, organizationID int64) ([]queries.ListServiceMetadataByOrganizationRow, error)
 

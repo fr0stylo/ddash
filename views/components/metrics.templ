@@ -1,0 +1,127 @@
+package components
+
+import "fmt"
+
+templ ServiceMetricsCard(data ServiceMetricsData) {
+	<div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+		@PipelineStatsCard(data.PipelineStats)
+		@DeploymentDurationCard(data.DeploymentDurations)
+		@RedeploymentCard(data.RedeploymentRate)
+		@DriftCard(data.DriftCount)
+	</div>
+}
+
+templ PipelineStatsCard(stats PipelineStatsData) {
+	<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+		<div class="text-xs uppercase tracking-wide text-gray-500">Pipeline 30d</div>
+		<div class="mt-1 font-semibold text-gray-900">{ fmt.Sprint(stats.PipelineSucceededCount) } succeeded</div>
+		<div class="mt-1 text-xs text-gray-500">{ fmt.Sprint(stats.PipelineFailedCount) } failed · { fmt.Sprint(stats.PipelineStartedCount) } started</div>
+	</div>
+}
+
+templ DeploymentDurationCard(durations DurationStatsData) {
+	<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+		<div class="text-xs uppercase tracking-wide text-gray-500">Deploy duration</div>
+		<div class="mt-1 font-semibold text-gray-900">{ fmt.Sprintf("%.1fs", durations.AvgDurationSeconds) } avg</div>
+		<div class="mt-1 text-xs text-gray-500">{ fmt.Sprintf("%ds", durations.MinDurationSeconds) } min · { fmt.Sprintf("%ds", durations.MaxDurationSeconds) } max</div>
+	</div>
+}
+
+templ RedeploymentCard(rate RedeploymentData) {
+	<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+		<div class="text-xs uppercase tracking-wide text-gray-500">Re-deploy rate 30d</div>
+		<div class="mt-1 font-semibold text-gray-900">{ fmt.Sprintf("%.1f%%", rate.RedeployRate*100) }</div>
+		<div class="mt-1 text-xs text-gray-500">{ fmt.Sprint(rate.RedeployCount) } re-deploys · { fmt.Sprint(rate.DeployDays) } active days</div>
+	</div>
+}
+
+templ DriftCard(count int64) {
+	<div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+		<div class="text-xs uppercase tracking-wide text-gray-500">Environment drift</div>
+		<div class="mt-1 font-semibold text-gray-900">{ fmt.Sprint(count) } drifts</div>
+		<div class="mt-1 text-xs text-gray-500">version differences between envs</div>
+	</div>
+}
+
+templ ComprehensiveMetricsPanel(data ComprehensiveData) {
+	<div class="rounded-lg border border-gray-200 bg-white p-4">
+		<h3 class="text-sm font-semibold text-gray-900 mb-3">Delivery Performance (DORA)</h3>
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+			<div>
+				<div class="text-xs text-gray-500 uppercase">Lead Time</div>
+				<div class="text-lg font-semibold text-gray-900">{ formatDuration(data.LeadTimeSeconds) }</div>
+				<div class="text-xs text-gray-500">code to production</div>
+			</div>
+			<div>
+				<div class="text-xs text-gray-500 uppercase">Deploy Frequency</div>
+				<div class="text-lg font-semibold text-gray-900">{ fmt.Sprint(data.DeploymentFrequency30d) }</div>
+				<div class="text-xs text-gray-500">deploys / 30 days</div>
+			</div>
+			<div>
+				<div class="text-xs text-gray-500 uppercase">Change Failure Rate</div>
+				<div class="text-lg font-semibold text-gray-900">{ fmt.Sprintf("%.1f%%", data.ChangeFailureRate*100) }</div>
+				<div class="text-xs text-gray-500">failures + rollbacks</div>
+			</div>
+			<div>
+				<div class="text-xs text-gray-500 uppercase">Avg Duration</div>
+				<div class="text-lg font-semibold text-gray-900">{ formatDuration(data.AvgDeploymentDurationSeconds) }</div>
+				<div class="text-xs text-gray-500">per deployment</div>
+			</div>
+		</div>
+		<div class="mt-4 pt-3 border-t border-gray-100 grid gap-4 sm:grid-cols-3">
+			<div class="text-xs">
+				<span class="text-gray-500">Pipeline: </span>
+				<span class="font-medium text-green-600">{ fmt.Sprint(data.PipelineSuccessCount30d) }</span>
+				<span class="text-gray-400"> / </span>
+				<span class="font-medium text-red-600">{ fmt.Sprint(data.PipelineFailureCount30d) }</span>
+			</div>
+			<div class="text-xs">
+				<span class="text-gray-500">Active deploy days: </span>
+				<span class="font-medium text-gray-900">{ fmt.Sprint(data.ActiveDeployDays30d) }</span>
+				<span class="text-gray-400"> / 30</span>
+			</div>
+		</div>
+	</div>
+}
+
+templ ArtifactAgeList(ages []ArtifactAgeData) {
+	if len(ages) > 0 {
+		<div class="rounded-lg border border-gray-200 bg-white p-4">
+			<h3 class="text-sm font-semibold text-gray-900 mb-3">Artifact Age</h3>
+			<div class="space-y-2">
+				for _, age := range ages {
+					<div class="flex items-center justify-between text-sm">
+						<span class="font-medium text-gray-700">{ age.Environment }</span>
+						<div class="text-right">
+							<span class="text-gray-900 font-mono text-xs">{ age.ArtifactID }</span>
+							<span class="text-gray-400 ml-2">{ formatAge(age.AgeSeconds) }</span>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	}
+}
+
+func formatDuration(seconds float64) string {
+	if seconds < 60 {
+		return fmt.Sprintf("%.0fs", seconds)
+	}
+	if seconds < 3600 {
+		return fmt.Sprintf("%.1fm", seconds/60)
+	}
+	return fmt.Sprintf("%.1fh", seconds/3600)
+}
+
+func formatAge(seconds int64) string {
+	if seconds < 60 {
+		return fmt.Sprintf("%ds ago", seconds)
+	}
+	if seconds < 3600 {
+		return fmt.Sprintf("%dm ago", seconds/60)
+	}
+	if seconds < 86400 {
+		return fmt.Sprintf("%.1fh ago", float64(seconds)/3600)
+	}
+	return fmt.Sprintf("%.1fd ago", float64(seconds)/86400)
+}

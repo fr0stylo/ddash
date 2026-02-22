@@ -78,7 +78,7 @@ func (v *ViewRoutes) handleServiceDetails(c echo.Context) error {
 	if flashLevel != "error" {
 		flashLevel = "success"
 	}
-	return c.Render(http.StatusOK, "", pages.ServicePage(mapDomainServiceDetail(detail), settings.ShowMetadataBadges, settings.ShowDeploymentHistory, settings.AllowServiceMetadataEditing, settings.ShowIntegrationTypeBadges, settings.ShowServiceDetailInsights, settings.ShowServiceDependencies, flashMessage, flashLevel, csrfToken(c)))
+	return c.Render(http.StatusOK, "", pages.ServicePage(mapDomainServiceDetail(detail), settings.ShowMetadataBadges, settings.ShowDeploymentHistory, settings.AllowServiceMetadataEditing, settings.ShowIntegrationTypeBadges, settings.ShowServiceDetailInsights, settings.ShowServiceDeliveryMetrics, settings.ShowServiceDependencies, flashMessage, flashLevel, csrfToken(c)))
 }
 
 func (v *ViewRoutes) handleServiceGrid(c echo.Context) error {

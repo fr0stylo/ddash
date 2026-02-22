@@ -38,6 +38,530 @@ func (_m *MockServiceAnalyticsStore) EXPECT() *MockServiceAnalyticsStore_Expecte
 	return &MockServiceAnalyticsStore_Expecter{mock: &_m.Mock}
 }
 
+// GetArtifactAgeByEnvironment provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetArtifactAgeByEnvironment(ctx context.Context, organizationID int64, service string) ([]ports.ArtifactAge, error) {
+	ret := _mock.Called(ctx, organizationID, service)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetArtifactAgeByEnvironment")
+	}
+
+	var r0 []ports.ArtifactAge
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) ([]ports.ArtifactAge, error)); ok {
+		return returnFunc(ctx, organizationID, service)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) []ports.ArtifactAge); ok {
+		r0 = returnFunc(ctx, organizationID, service)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]ports.ArtifactAge)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string) error); ok {
+		r1 = returnFunc(ctx, organizationID, service)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetArtifactAgeByEnvironment'
+type MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call struct {
+	*mock.Call
+}
+
+// GetArtifactAgeByEnvironment is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+func (_e *MockServiceAnalyticsStore_Expecter) GetArtifactAgeByEnvironment(ctx interface{}, organizationID interface{}, service interface{}) *MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call {
+	return &MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call{Call: _e.mock.On("GetArtifactAgeByEnvironment", ctx, organizationID, service)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call) Run(run func(ctx context.Context, organizationID int64, service string)) *MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call) Return(artifactAges []ports.ArtifactAge, err error) *MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call {
+	_c.Call.Return(artifactAges, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string) ([]ports.ArtifactAge, error)) *MockServiceAnalyticsStore_GetArtifactAgeByEnvironment_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetComprehensiveDeliveryMetrics provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetComprehensiveDeliveryMetrics(ctx context.Context, organizationID int64, sinceMs int64) (ports.ComprehensiveDeliveryMetrics, error) {
+	ret := _mock.Called(ctx, organizationID, sinceMs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetComprehensiveDeliveryMetrics")
+	}
+
+	var r0 ports.ComprehensiveDeliveryMetrics
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) (ports.ComprehensiveDeliveryMetrics, error)); ok {
+		return returnFunc(ctx, organizationID, sinceMs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) ports.ComprehensiveDeliveryMetrics); ok {
+		r0 = returnFunc(ctx, organizationID, sinceMs)
+	} else {
+		r0 = ret.Get(0).(ports.ComprehensiveDeliveryMetrics)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
+		r1 = returnFunc(ctx, organizationID, sinceMs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetComprehensiveDeliveryMetrics'
+type MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call struct {
+	*mock.Call
+}
+
+// GetComprehensiveDeliveryMetrics is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - sinceMs int64
+func (_e *MockServiceAnalyticsStore_Expecter) GetComprehensiveDeliveryMetrics(ctx interface{}, organizationID interface{}, sinceMs interface{}) *MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call {
+	return &MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call{Call: _e.mock.On("GetComprehensiveDeliveryMetrics", ctx, organizationID, sinceMs)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call) Run(run func(ctx context.Context, organizationID int64, sinceMs int64)) *MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call) Return(comprehensiveDeliveryMetrics ports.ComprehensiveDeliveryMetrics, err error) *MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call {
+	_c.Call.Return(comprehensiveDeliveryMetrics, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, sinceMs int64) (ports.ComprehensiveDeliveryMetrics, error)) *MockServiceAnalyticsStore_GetComprehensiveDeliveryMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetDeploymentDurationStats provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetDeploymentDurationStats(ctx context.Context, organizationID int64, service string, environment string, sinceMs int64) (ports.DeploymentDurationStats, error) {
+	ret := _mock.Called(ctx, organizationID, service, environment, sinceMs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDeploymentDurationStats")
+	}
+
+	var r0 ports.DeploymentDurationStats
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, string, int64) (ports.DeploymentDurationStats, error)); ok {
+		return returnFunc(ctx, organizationID, service, environment, sinceMs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, string, int64) ports.DeploymentDurationStats); ok {
+		r0 = returnFunc(ctx, organizationID, service, environment, sinceMs)
+	} else {
+		r0 = ret.Get(0).(ports.DeploymentDurationStats)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string, string, int64) error); ok {
+		r1 = returnFunc(ctx, organizationID, service, environment, sinceMs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetDeploymentDurationStats_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDeploymentDurationStats'
+type MockServiceAnalyticsStore_GetDeploymentDurationStats_Call struct {
+	*mock.Call
+}
+
+// GetDeploymentDurationStats is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+//   - environment string
+//   - sinceMs int64
+func (_e *MockServiceAnalyticsStore_Expecter) GetDeploymentDurationStats(ctx interface{}, organizationID interface{}, service interface{}, environment interface{}, sinceMs interface{}) *MockServiceAnalyticsStore_GetDeploymentDurationStats_Call {
+	return &MockServiceAnalyticsStore_GetDeploymentDurationStats_Call{Call: _e.mock.On("GetDeploymentDurationStats", ctx, organizationID, service, environment, sinceMs)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetDeploymentDurationStats_Call) Run(run func(ctx context.Context, organizationID int64, service string, environment string, sinceMs int64)) *MockServiceAnalyticsStore_GetDeploymentDurationStats_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		var arg4 int64
+		if args[4] != nil {
+			arg4 = args[4].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+			arg4,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetDeploymentDurationStats_Call) Return(deploymentDurationStats ports.DeploymentDurationStats, err error) *MockServiceAnalyticsStore_GetDeploymentDurationStats_Call {
+	_c.Call.Return(deploymentDurationStats, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetDeploymentDurationStats_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string, environment string, sinceMs int64) (ports.DeploymentDurationStats, error)) *MockServiceAnalyticsStore_GetDeploymentDurationStats_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetEnvironmentDriftCount provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetEnvironmentDriftCount(ctx context.Context, organizationID int64, service string, sinceMs int64) (int64, error) {
+	ret := _mock.Called(ctx, organizationID, service, sinceMs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetEnvironmentDriftCount")
+	}
+
+	var r0 int64
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) (int64, error)); ok {
+		return returnFunc(ctx, organizationID, service, sinceMs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) int64); ok {
+		r0 = returnFunc(ctx, organizationID, service, sinceMs)
+	} else {
+		r0 = ret.Get(0).(int64)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string, int64) error); ok {
+		r1 = returnFunc(ctx, organizationID, service, sinceMs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetEnvironmentDriftCount'
+type MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call struct {
+	*mock.Call
+}
+
+// GetEnvironmentDriftCount is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+//   - sinceMs int64
+func (_e *MockServiceAnalyticsStore_Expecter) GetEnvironmentDriftCount(ctx interface{}, organizationID interface{}, service interface{}, sinceMs interface{}) *MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call {
+	return &MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call{Call: _e.mock.On("GetEnvironmentDriftCount", ctx, organizationID, service, sinceMs)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call) Run(run func(ctx context.Context, organizationID int64, service string, sinceMs int64)) *MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call) Return(n int64, err error) *MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call {
+	_c.Call.Return(n, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string, sinceMs int64) (int64, error)) *MockServiceAnalyticsStore_GetEnvironmentDriftCount_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetMTTR provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetMTTR(ctx context.Context, organizationID int64, sinceMs int64) (ports.MTTRStats, error) {
+	ret := _mock.Called(ctx, organizationID, sinceMs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetMTTR")
+	}
+
+	var r0 ports.MTTRStats
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) (ports.MTTRStats, error)); ok {
+		return returnFunc(ctx, organizationID, sinceMs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, int64) ports.MTTRStats); ok {
+		r0 = returnFunc(ctx, organizationID, sinceMs)
+	} else {
+		r0 = ret.Get(0).(ports.MTTRStats)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, int64) error); ok {
+		r1 = returnFunc(ctx, organizationID, sinceMs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetMTTR_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetMTTR'
+type MockServiceAnalyticsStore_GetMTTR_Call struct {
+	*mock.Call
+}
+
+// GetMTTR is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - sinceMs int64
+func (_e *MockServiceAnalyticsStore_Expecter) GetMTTR(ctx interface{}, organizationID interface{}, sinceMs interface{}) *MockServiceAnalyticsStore_GetMTTR_Call {
+	return &MockServiceAnalyticsStore_GetMTTR_Call{Call: _e.mock.On("GetMTTR", ctx, organizationID, sinceMs)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetMTTR_Call) Run(run func(ctx context.Context, organizationID int64, sinceMs int64)) *MockServiceAnalyticsStore_GetMTTR_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 int64
+		if args[2] != nil {
+			arg2 = args[2].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetMTTR_Call) Return(mTTRStats ports.MTTRStats, err error) *MockServiceAnalyticsStore_GetMTTR_Call {
+	_c.Call.Return(mTTRStats, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetMTTR_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, sinceMs int64) (ports.MTTRStats, error)) *MockServiceAnalyticsStore_GetMTTR_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetPipelineStats30d provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetPipelineStats30d(ctx context.Context, organizationID int64, service string) (ports.PipelineStats, error) {
+	ret := _mock.Called(ctx, organizationID, service)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetPipelineStats30d")
+	}
+
+	var r0 ports.PipelineStats
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) (ports.PipelineStats, error)); ok {
+		return returnFunc(ctx, organizationID, service)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) ports.PipelineStats); ok {
+		r0 = returnFunc(ctx, organizationID, service)
+	} else {
+		r0 = ret.Get(0).(ports.PipelineStats)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string) error); ok {
+		r1 = returnFunc(ctx, organizationID, service)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetPipelineStats30d_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPipelineStats30d'
+type MockServiceAnalyticsStore_GetPipelineStats30d_Call struct {
+	*mock.Call
+}
+
+// GetPipelineStats30d is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+func (_e *MockServiceAnalyticsStore_Expecter) GetPipelineStats30d(ctx interface{}, organizationID interface{}, service interface{}) *MockServiceAnalyticsStore_GetPipelineStats30d_Call {
+	return &MockServiceAnalyticsStore_GetPipelineStats30d_Call{Call: _e.mock.On("GetPipelineStats30d", ctx, organizationID, service)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetPipelineStats30d_Call) Run(run func(ctx context.Context, organizationID int64, service string)) *MockServiceAnalyticsStore_GetPipelineStats30d_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetPipelineStats30d_Call) Return(pipelineStats ports.PipelineStats, err error) *MockServiceAnalyticsStore_GetPipelineStats30d_Call {
+	_c.Call.Return(pipelineStats, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetPipelineStats30d_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string) (ports.PipelineStats, error)) *MockServiceAnalyticsStore_GetPipelineStats30d_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetRedeploymentRate30d provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetRedeploymentRate30d(ctx context.Context, organizationID int64, service string) (ports.RedeploymentRate, error) {
+	ret := _mock.Called(ctx, organizationID, service)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetRedeploymentRate30d")
+	}
+
+	var r0 ports.RedeploymentRate
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) (ports.RedeploymentRate, error)); ok {
+		return returnFunc(ctx, organizationID, service)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) ports.RedeploymentRate); ok {
+		r0 = returnFunc(ctx, organizationID, service)
+	} else {
+		r0 = ret.Get(0).(ports.RedeploymentRate)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string) error); ok {
+		r1 = returnFunc(ctx, organizationID, service)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetRedeploymentRate30d_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRedeploymentRate30d'
+type MockServiceAnalyticsStore_GetRedeploymentRate30d_Call struct {
+	*mock.Call
+}
+
+// GetRedeploymentRate30d is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+func (_e *MockServiceAnalyticsStore_Expecter) GetRedeploymentRate30d(ctx interface{}, organizationID interface{}, service interface{}) *MockServiceAnalyticsStore_GetRedeploymentRate30d_Call {
+	return &MockServiceAnalyticsStore_GetRedeploymentRate30d_Call{Call: _e.mock.On("GetRedeploymentRate30d", ctx, organizationID, service)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetRedeploymentRate30d_Call) Run(run func(ctx context.Context, organizationID int64, service string)) *MockServiceAnalyticsStore_GetRedeploymentRate30d_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetRedeploymentRate30d_Call) Return(redeploymentRate ports.RedeploymentRate, err error) *MockServiceAnalyticsStore_GetRedeploymentRate30d_Call {
+	_c.Call.Return(redeploymentRate, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetRedeploymentRate30d_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string) (ports.RedeploymentRate, error)) *MockServiceAnalyticsStore_GetRedeploymentRate30d_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetServiceCurrentState provides a mock function for the type MockServiceAnalyticsStore
 func (_mock *MockServiceAnalyticsStore) GetServiceCurrentState(ctx context.Context, organizationID int64, service string) (ports.ServiceCurrentState, error) {
 	ret := _mock.Called(ctx, organizationID, service)
@@ -178,6 +702,238 @@ func (_c *MockServiceAnalyticsStore_GetServiceDeliveryStats30d_Call) Return(serv
 }
 
 func (_c *MockServiceAnalyticsStore_GetServiceDeliveryStats30d_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string) (ports.ServiceDeliveryStats, error)) *MockServiceAnalyticsStore_GetServiceDeliveryStats30d_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// GetThroughputStats provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) GetThroughputStats(ctx context.Context, organizationID int64, service string) (ports.WeeklyThroughput, error) {
+	ret := _mock.Called(ctx, organizationID, service)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetThroughputStats")
+	}
+
+	var r0 ports.WeeklyThroughput
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) (ports.WeeklyThroughput, error)); ok {
+		return returnFunc(ctx, organizationID, service)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string) ports.WeeklyThroughput); ok {
+		r0 = returnFunc(ctx, organizationID, service)
+	} else {
+		r0 = ret.Get(0).(ports.WeeklyThroughput)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string) error); ok {
+		r1 = returnFunc(ctx, organizationID, service)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_GetThroughputStats_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetThroughputStats'
+type MockServiceAnalyticsStore_GetThroughputStats_Call struct {
+	*mock.Call
+}
+
+// GetThroughputStats is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+func (_e *MockServiceAnalyticsStore_Expecter) GetThroughputStats(ctx interface{}, organizationID interface{}, service interface{}) *MockServiceAnalyticsStore_GetThroughputStats_Call {
+	return &MockServiceAnalyticsStore_GetThroughputStats_Call{Call: _e.mock.On("GetThroughputStats", ctx, organizationID, service)}
+}
+
+func (_c *MockServiceAnalyticsStore_GetThroughputStats_Call) Run(run func(ctx context.Context, organizationID int64, service string)) *MockServiceAnalyticsStore_GetThroughputStats_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetThroughputStats_Call) Return(weeklyThroughput ports.WeeklyThroughput, err error) *MockServiceAnalyticsStore_GetThroughputStats_Call {
+	_c.Call.Return(weeklyThroughput, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_GetThroughputStats_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string) (ports.WeeklyThroughput, error)) *MockServiceAnalyticsStore_GetThroughputStats_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListEnvironmentDrifts provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) ListEnvironmentDrifts(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.EnvironmentDrift, error) {
+	ret := _mock.Called(ctx, organizationID, service, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListEnvironmentDrifts")
+	}
+
+	var r0 []ports.EnvironmentDrift
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) ([]ports.EnvironmentDrift, error)); ok {
+		return returnFunc(ctx, organizationID, service, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) []ports.EnvironmentDrift); ok {
+		r0 = returnFunc(ctx, organizationID, service, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]ports.EnvironmentDrift)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string, int64) error); ok {
+		r1 = returnFunc(ctx, organizationID, service, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_ListEnvironmentDrifts_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListEnvironmentDrifts'
+type MockServiceAnalyticsStore_ListEnvironmentDrifts_Call struct {
+	*mock.Call
+}
+
+// ListEnvironmentDrifts is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+//   - limit int64
+func (_e *MockServiceAnalyticsStore_Expecter) ListEnvironmentDrifts(ctx interface{}, organizationID interface{}, service interface{}, limit interface{}) *MockServiceAnalyticsStore_ListEnvironmentDrifts_Call {
+	return &MockServiceAnalyticsStore_ListEnvironmentDrifts_Call{Call: _e.mock.On("ListEnvironmentDrifts", ctx, organizationID, service, limit)}
+}
+
+func (_c *MockServiceAnalyticsStore_ListEnvironmentDrifts_Call) Run(run func(ctx context.Context, organizationID int64, service string, limit int64)) *MockServiceAnalyticsStore_ListEnvironmentDrifts_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_ListEnvironmentDrifts_Call) Return(environmentDrifts []ports.EnvironmentDrift, err error) *MockServiceAnalyticsStore_ListEnvironmentDrifts_Call {
+	_c.Call.Return(environmentDrifts, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_ListEnvironmentDrifts_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.EnvironmentDrift, error)) *MockServiceAnalyticsStore_ListEnvironmentDrifts_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListIncidentLinks provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) ListIncidentLinks(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.IncidentLink, error) {
+	ret := _mock.Called(ctx, organizationID, service, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListIncidentLinks")
+	}
+
+	var r0 []ports.IncidentLink
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) ([]ports.IncidentLink, error)); ok {
+		return returnFunc(ctx, organizationID, service, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) []ports.IncidentLink); ok {
+		r0 = returnFunc(ctx, organizationID, service, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]ports.IncidentLink)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string, int64) error); ok {
+		r1 = returnFunc(ctx, organizationID, service, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_ListIncidentLinks_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListIncidentLinks'
+type MockServiceAnalyticsStore_ListIncidentLinks_Call struct {
+	*mock.Call
+}
+
+// ListIncidentLinks is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+//   - limit int64
+func (_e *MockServiceAnalyticsStore_Expecter) ListIncidentLinks(ctx interface{}, organizationID interface{}, service interface{}, limit interface{}) *MockServiceAnalyticsStore_ListIncidentLinks_Call {
+	return &MockServiceAnalyticsStore_ListIncidentLinks_Call{Call: _e.mock.On("ListIncidentLinks", ctx, organizationID, service, limit)}
+}
+
+func (_c *MockServiceAnalyticsStore_ListIncidentLinks_Call) Run(run func(ctx context.Context, organizationID int64, service string, limit int64)) *MockServiceAnalyticsStore_ListIncidentLinks_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_ListIncidentLinks_Call) Return(incidentLinks []ports.IncidentLink, err error) *MockServiceAnalyticsStore_ListIncidentLinks_Call {
+	_c.Call.Return(incidentLinks, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_ListIncidentLinks_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.IncidentLink, error)) *MockServiceAnalyticsStore_ListIncidentLinks_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -332,6 +1088,86 @@ func (_c *MockServiceAnalyticsStore_ListServiceLeadTimeSamples_Call) Return(serv
 }
 
 func (_c *MockServiceAnalyticsStore_ListServiceLeadTimeSamples_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, sinceMs int64) ([]ports.ServiceLeadTimeSample, error)) *MockServiceAnalyticsStore_ListServiceLeadTimeSamples_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ListWeeklyThroughput provides a mock function for the type MockServiceAnalyticsStore
+func (_mock *MockServiceAnalyticsStore) ListWeeklyThroughput(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.WeeklyThroughput, error) {
+	ret := _mock.Called(ctx, organizationID, service, limit)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ListWeeklyThroughput")
+	}
+
+	var r0 []ports.WeeklyThroughput
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) ([]ports.WeeklyThroughput, error)); ok {
+		return returnFunc(ctx, organizationID, service, limit)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, int64, string, int64) []ports.WeeklyThroughput); ok {
+		r0 = returnFunc(ctx, organizationID, service, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]ports.WeeklyThroughput)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, int64, string, int64) error); ok {
+		r1 = returnFunc(ctx, organizationID, service, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockServiceAnalyticsStore_ListWeeklyThroughput_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListWeeklyThroughput'
+type MockServiceAnalyticsStore_ListWeeklyThroughput_Call struct {
+	*mock.Call
+}
+
+// ListWeeklyThroughput is a helper method to define mock.On call
+//   - ctx context.Context
+//   - organizationID int64
+//   - service string
+//   - limit int64
+func (_e *MockServiceAnalyticsStore_Expecter) ListWeeklyThroughput(ctx interface{}, organizationID interface{}, service interface{}, limit interface{}) *MockServiceAnalyticsStore_ListWeeklyThroughput_Call {
+	return &MockServiceAnalyticsStore_ListWeeklyThroughput_Call{Call: _e.mock.On("ListWeeklyThroughput", ctx, organizationID, service, limit)}
+}
+
+func (_c *MockServiceAnalyticsStore_ListWeeklyThroughput_Call) Run(run func(ctx context.Context, organizationID int64, service string, limit int64)) *MockServiceAnalyticsStore_ListWeeklyThroughput_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 int64
+		if args[1] != nil {
+			arg1 = args[1].(int64)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 int64
+		if args[3] != nil {
+			arg3 = args[3].(int64)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_ListWeeklyThroughput_Call) Return(weeklyThroughputs []ports.WeeklyThroughput, err error) *MockServiceAnalyticsStore_ListWeeklyThroughput_Call {
+	_c.Call.Return(weeklyThroughputs, err)
+	return _c
+}
+
+func (_c *MockServiceAnalyticsStore_ListWeeklyThroughput_Call) RunAndReturn(run func(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.WeeklyThroughput, error)) *MockServiceAnalyticsStore_ListWeeklyThroughput_Call {
 	_c.Call.Return(run)
 	return _c
 }

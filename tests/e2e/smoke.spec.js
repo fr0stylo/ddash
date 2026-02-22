@@ -42,14 +42,14 @@ test('deployments and service release analytics render with seeded events', asyn
   await expect(page.getByText(/^from pkg:generic\/orders@/).first()).toBeVisible()
 
   await expect(page.getByRole('heading', { name: 'Dependencies' })).toBeVisible()
-  await page.getByPlaceholder('Service name this service depends on').fill('billing')
-  await page.getByRole('button', { name: 'Add' }).click()
-  await expect(page.getByText('Dependency added')).toBeVisible()
+  await page.getByPlaceholder('Add dependencies (comma-separated)').fill('billing')
+  await page.getByRole('button', { name: 'Add dependencies' }).click()
+  await expect(page.getByText('Added 1 dependency')).toBeVisible()
   await expect(page.locator('a[href="/s/billing"]').first()).toBeVisible()
 
   const dependencyRow = page.locator('xpath=//a[@href="/s/billing"]/ancestor::div[contains(@class,"justify-between")][1]')
   await dependencyRow.getByRole('button', { name: 'Remove' }).click()
-  await expect(page.getByText('Dependency removed')).toBeVisible()
+  await expect(page.getByText('removed', { exact: false })).toBeVisible()
 
   assertNoConsoleErrors()
 })

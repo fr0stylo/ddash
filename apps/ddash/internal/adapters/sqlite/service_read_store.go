@@ -477,6 +477,36 @@ func toInt64(value interface{}) int64 {
 	}
 }
 
+func toFloat64(value interface{}) float64 {
+	switch v := value.(type) {
+	case nil:
+		return 0
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		text := strings.TrimSpace(fmt.Sprint(v))
+		parsed, err := strconv.ParseFloat(text, 64)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	}
+}
+
 func formatTimestamp(value string) string {
 	text := strings.TrimSpace(value)
 	if text == "" {
@@ -527,4 +557,223 @@ func isMissingEnvPriorityTableErr(err error) bool {
 	}
 	message := strings.ToLower(err.Error())
 	return strings.Contains(message, "no such table") && strings.Contains(message, "organization_environment_priorities")
+}
+
+func (s *Store) GetPipelineStats30d(ctx context.Context, organizationID int64, service string) (ports.PipelineStats, error) {
+	row, err := s.database.GetPipelineStats30d(ctx, queries.GetPipelineStats30dParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.PipelineStats{}, nil
+		}
+		return ports.PipelineStats{}, err
+	}
+	return ports.PipelineStats{
+		PipelineStartedCount:   toInt64(row.PipelineStartedCount),
+		PipelineSucceededCount: toInt64(row.PipelineSucceededCount),
+		PipelineFailedCount:    toInt64(row.PipelineFailedCount),
+		TotalDurationSeconds:   toInt64(row.TotalDurationSeconds),
+		AvgDurationSeconds:     float64(row.AvgDurationSeconds),
+	}, nil
+}
+
+func (s *Store) GetDeploymentDurationStats(ctx context.Context, organizationID int64, service string, environment string, sinceMs int64) (ports.DeploymentDurationStats, error) {
+	row, err := s.database.GetDeploymentDurationStats(ctx, queries.GetDeploymentDurationStatsParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+		Environment:    environment,
+		SinceMs:        sinceMs,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.DeploymentDurationStats{}, nil
+		}
+		return ports.DeploymentDurationStats{}, err
+	}
+	return ports.DeploymentDurationStats{
+		SampleCount:         row.SampleCount,
+		AvgDurationSeconds:  toFloat64(row.AvgDurationSeconds),
+		MinDurationSeconds:  toInt64(row.MinDurationSeconds),
+		MaxDurationSeconds:  toInt64(row.MaxDurationSeconds),
+		LastDurationSeconds: toInt64(row.LastDurationSeconds),
+	}, nil
+}
+
+func (s *Store) GetEnvironmentDriftCount(ctx context.Context, organizationID int64, service string, sinceMs int64) (int64, error) {
+	return s.database.GetEnvironmentDriftCount(ctx, queries.GetEnvironmentDriftCountParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+		SinceMs:        sinceMs,
+	})
+}
+
+func (s *Store) ListEnvironmentDrifts(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.EnvironmentDrift, error) {
+	rows, err := s.database.ListEnvironmentDrifts(ctx, queries.ListEnvironmentDriftsParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+		Limit:          limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ports.EnvironmentDrift, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ports.EnvironmentDrift{
+			EnvironmentFrom: strings.TrimSpace(row.EnvironmentFrom),
+			EnvironmentTo:   strings.TrimSpace(row.EnvironmentTo),
+			ArtifactIDFrom:  strings.TrimSpace(row.ArtifactIDFrom),
+			ArtifactIDTo:    strings.TrimSpace(row.ArtifactIDTo),
+			DriftDetectedAt: row.DriftDetectedAt,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) GetRedeploymentRate30d(ctx context.Context, organizationID int64, service string) (ports.RedeploymentRate, error) {
+	row, err := s.database.GetRedeploymentRate30d(ctx, queries.GetRedeploymentRate30dParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.RedeploymentRate{}, nil
+		}
+		return ports.RedeploymentRate{}, err
+	}
+	redeployCount := toInt64(row.RedeployCount)
+	var rate float64
+	if row.DeployDays > 0 {
+		rate = float64(redeployCount) / float64(row.DeployDays)
+	}
+	return ports.RedeploymentRate{
+		RedeployCount: redeployCount,
+		DeployDays:    row.DeployDays,
+		RedeployRate:  rate,
+	}, nil
+}
+
+func (s *Store) GetThroughputStats(ctx context.Context, organizationID int64, service string) (ports.WeeklyThroughput, error) {
+	row, err := s.database.GetThroughputStats(ctx, queries.GetThroughputStatsParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.WeeklyThroughput{}, nil
+		}
+		return ports.WeeklyThroughput{}, err
+	}
+	return ports.WeeklyThroughput{
+		WeekStart:        "",
+		ChangesCount:     toInt64(row.ChangesCount),
+		DeploymentsCount: toInt64(row.DeploymentsCount),
+	}, nil
+}
+
+func (s *Store) ListWeeklyThroughput(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.WeeklyThroughput, error) {
+	rows, err := s.database.ListWeeklyThroughput(ctx, queries.ListWeeklyThroughputParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+		Limit:          limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ports.WeeklyThroughput, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ports.WeeklyThroughput{
+			WeekStart:        toString(row.WeekStart),
+			ChangesCount:     row.ChangesCount,
+			DeploymentsCount: row.DeploymentsCount,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) GetArtifactAgeByEnvironment(ctx context.Context, organizationID int64, service string) ([]ports.ArtifactAge, error) {
+	rows, err := s.database.GetArtifactAgeByEnvironment(ctx, queries.GetArtifactAgeByEnvironmentParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ports.ArtifactAge, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ports.ArtifactAge{
+			Environment:   strings.TrimSpace(row.Environment),
+			ArtifactID:    strings.TrimSpace(row.LatestArtifactID),
+			AgeSeconds:    row.AgeSeconds,
+			LastEventTsMs: row.LatestEventTsMs,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) GetMTTR(ctx context.Context, organizationID int64, sinceMs int64) (ports.MTTRStats, error) {
+	row, err := s.database.GetMTTR(ctx, queries.GetMTTRParams{
+		OrganizationID: organizationID,
+		SinceMs:        sinceMs,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.MTTRStats{}, nil
+		}
+		return ports.MTTRStats{}, err
+	}
+	return ports.MTTRStats{
+		IncidentCount: row.IncidentCount,
+		MTTRSeconds:   float64(row.MttrSeconds),
+		MTTDSeconds:   float64(row.MttdSeconds),
+		MTTESeconds:   float64(row.MtteSeconds),
+	}, nil
+}
+
+func (s *Store) ListIncidentLinks(ctx context.Context, organizationID int64, service string, limit int64) ([]ports.IncidentLink, error) {
+	rows, err := s.database.ListIncidentLinks(ctx, queries.ListIncidentLinksParams{
+		OrganizationID: organizationID,
+		ServiceName:    service,
+		Limit:          limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ports.IncidentLink, 0, len(rows))
+	for _, row := range rows {
+		deploymentSeq := int64(0)
+		if row.DeploymentEventSeq.Valid {
+			deploymentSeq = row.DeploymentEventSeq.Int64
+		}
+		out = append(out, ports.IncidentLink{
+			IncidentID:         strings.TrimSpace(row.IncidentID),
+			IncidentType:       strings.TrimSpace(row.IncidentType),
+			LinkedAt:           row.LinkedAt,
+			DeploymentEventSeq: deploymentSeq,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) GetComprehensiveDeliveryMetrics(ctx context.Context, organizationID int64, sinceMs int64) (ports.ComprehensiveDeliveryMetrics, error) {
+	row, err := s.database.GetComprehensiveDeliveryMetrics(ctx, queries.GetComprehensiveDeliveryMetricsParams{
+		OrganizationID: organizationID,
+		SinceMs:        sinceMs,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ports.ComprehensiveDeliveryMetrics{}, nil
+		}
+		return ports.ComprehensiveDeliveryMetrics{}, err
+	}
+	return ports.ComprehensiveDeliveryMetrics{
+		LeadTimeSeconds:              toFloat64(row.LeadTimeSeconds),
+		DeploymentFrequency30d:       toInt64(row.DeploymentFrequency30d),
+		ChangeFailureRate:            float64(row.ChangeFailureRate),
+		AvgDeploymentDurationSeconds: toFloat64(row.AvgDeploymentDurationSeconds),
+		PipelineSuccessCount30d:      toInt64(row.PipelineSuccessCount30d),
+		PipelineFailureCount30d:      toInt64(row.PipelineFailureCount30d),
+		ActiveDeployDays30d:          row.ActiveDeployDays30d,
+	}, nil
 }

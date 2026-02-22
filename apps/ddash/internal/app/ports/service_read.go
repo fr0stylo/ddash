@@ -74,6 +74,73 @@ type ServiceLeadTimeSample struct {
 	LeadSeconds int64
 }
 
+type PipelineStats struct {
+	PipelineStartedCount   int64
+	PipelineSucceededCount int64
+	PipelineFailedCount    int64
+	TotalDurationSeconds   int64
+	AvgDurationSeconds     float64
+}
+
+type DeploymentDurationStats struct {
+	SampleCount         int64
+	AvgDurationSeconds  float64
+	MinDurationSeconds  int64
+	MaxDurationSeconds  int64
+	LastDurationSeconds int64
+}
+
+type EnvironmentDrift struct {
+	EnvironmentFrom string
+	EnvironmentTo   string
+	ArtifactIDFrom  string
+	ArtifactIDTo    string
+	DriftDetectedAt int64
+}
+
+type RedeploymentRate struct {
+	RedeployCount int64
+	DeployDays    int64
+	RedeployRate  float64
+}
+
+type WeeklyThroughput struct {
+	WeekStart        string
+	ChangesCount     int64
+	DeploymentsCount int64
+}
+
+type ArtifactAge struct {
+	Environment   string
+	ArtifactID    string
+	AgeSeconds    int64
+	LastEventTsMs int64
+}
+
+type MTTRStats struct {
+	IncidentCount int64
+	MTTRSeconds   float64
+	MTTDSeconds   float64
+	MTTESeconds   float64
+}
+
+type IncidentLink struct {
+	IncidentID         string
+	IncidentType       string
+	LinkedAt           int64
+	DeploymentEventSeq int64
+}
+
+type ComprehensiveDeliveryMetrics struct {
+	LeadTimeSeconds              float64
+	DeploymentFrequency30d       int64
+	ChangeFailureRate            float64
+	AvgDeploymentDurationSeconds float64
+	PipelineSuccessCount30d      int64
+	PipelineFailureCount30d      int64
+	ActiveDeployDays30d          int64
+}
+
 // ServiceDependency represents one dependency relationship edge.
 type ServiceDependency struct {
 	ServiceName   string
@@ -109,6 +176,17 @@ type ServiceAnalyticsStore interface {
 	GetServiceDeliveryStats30d(ctx context.Context, organizationID int64, service string) (ServiceDeliveryStats, error)
 	ListServiceChangeLinksRecent(ctx context.Context, organizationID int64, service string, limit int64) ([]ServiceChangeLink, error)
 	ListServiceLeadTimeSamples(ctx context.Context, organizationID int64, sinceMs int64) ([]ServiceLeadTimeSample, error)
+	GetPipelineStats30d(ctx context.Context, organizationID int64, service string) (PipelineStats, error)
+	GetDeploymentDurationStats(ctx context.Context, organizationID int64, service string, environment string, sinceMs int64) (DeploymentDurationStats, error)
+	GetEnvironmentDriftCount(ctx context.Context, organizationID int64, service string, sinceMs int64) (int64, error)
+	ListEnvironmentDrifts(ctx context.Context, organizationID int64, service string, limit int64) ([]EnvironmentDrift, error)
+	GetRedeploymentRate30d(ctx context.Context, organizationID int64, service string) (RedeploymentRate, error)
+	GetThroughputStats(ctx context.Context, organizationID int64, service string) (WeeklyThroughput, error)
+	ListWeeklyThroughput(ctx context.Context, organizationID int64, service string, limit int64) ([]WeeklyThroughput, error)
+	GetArtifactAgeByEnvironment(ctx context.Context, organizationID int64, service string) ([]ArtifactAge, error)
+	GetMTTR(ctx context.Context, organizationID int64, sinceMs int64) (MTTRStats, error)
+	ListIncidentLinks(ctx context.Context, organizationID int64, service string, limit int64) ([]IncidentLink, error)
+	GetComprehensiveDeliveryMetrics(ctx context.Context, organizationID int64, sinceMs int64) (ComprehensiveDeliveryMetrics, error)
 }
 
 // ServiceReadStore is a convenience aggregate for callsites using one store.

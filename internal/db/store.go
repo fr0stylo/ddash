@@ -616,3 +616,47 @@ func (c *Database) WithTx(ctx context.Context, fn func(*queries.Queries) error) 
 	}
 	return tx.Commit()
 }
+
+func (c *Database) GetPipelineStats30d(ctx context.Context, arg queries.GetPipelineStats30dParams) (queries.GetPipelineStats30dRow, error) {
+	return c.Queries.GetPipelineStats30d(ctx, arg)
+}
+
+func (c *Database) GetDeploymentDurationStats(ctx context.Context, arg queries.GetDeploymentDurationStatsParams) (queries.GetDeploymentDurationStatsRow, error) {
+	return c.Queries.GetDeploymentDurationStats(ctx, arg)
+}
+
+func (c *Database) GetEnvironmentDriftCount(ctx context.Context, arg queries.GetEnvironmentDriftCountParams) (int64, error) {
+	return c.Queries.GetEnvironmentDriftCount(ctx, arg)
+}
+
+func (c *Database) ListEnvironmentDrifts(ctx context.Context, arg queries.ListEnvironmentDriftsParams) ([]queries.ListEnvironmentDriftsRow, error) {
+	return c.Queries.ListEnvironmentDrifts(ctx, arg)
+}
+
+func (c *Database) GetRedeploymentRate30d(ctx context.Context, arg queries.GetRedeploymentRate30dParams) (queries.GetRedeploymentRate30dRow, error) {
+	return c.Queries.GetRedeploymentRate30d(ctx, arg)
+}
+
+func (c *Database) GetThroughputStats(ctx context.Context, arg queries.GetThroughputStatsParams) (queries.GetThroughputStatsRow, error) {
+	return c.Queries.GetThroughputStats(ctx, arg)
+}
+
+func (c *Database) ListWeeklyThroughput(ctx context.Context, arg queries.ListWeeklyThroughputParams) ([]queries.ListWeeklyThroughputRow, error) {
+	return c.Queries.ListWeeklyThroughput(ctx, arg)
+}
+
+func (c *Database) GetArtifactAgeByEnvironment(ctx context.Context, arg queries.GetArtifactAgeByEnvironmentParams) ([]queries.GetArtifactAgeByEnvironmentRow, error) {
+	return c.Queries.GetArtifactAgeByEnvironment(ctx, arg)
+}
+
+func (c *Database) GetMTTR(ctx context.Context, arg queries.GetMTTRParams) (queries.GetMTTRRow, error) {
+	return c.Queries.GetMTTR(ctx, arg)
+}
+
+func (c *Database) ListIncidentLinks(ctx context.Context, arg queries.ListIncidentLinksParams) ([]queries.ListIncidentLinksRow, error) {
+	return c.Queries.ListIncidentLinks(ctx, arg)
+}
+
+func (c *Database) GetComprehensiveDeliveryMetrics(ctx context.Context, arg queries.GetComprehensiveDeliveryMetricsParams) (queries.GetComprehensiveDeliveryMetricsRow, error) {
+	return c.Queries.GetComprehensiveDeliveryMetrics(ctx, arg)
+}

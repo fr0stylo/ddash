@@ -79,6 +79,7 @@ type OrganizationSettingsUpdate struct {
 	ShowIntegrationTypeBadges   bool
 	ShowServiceDetailInsights   bool
 	ShowServiceDependencies     bool
+	ShowServiceDeliveryMetrics  bool
 	DeploymentRetentionDays     int
 	DefaultDashboardView        string
 	StatusSemanticsMode         string
