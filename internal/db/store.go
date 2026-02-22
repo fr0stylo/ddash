@@ -220,6 +220,11 @@ func (c *Database) ListServiceChangeLinksRecent(ctx context.Context, params quer
 	return c.Queries.ListServiceChangeLinksRecent(ctx, params)
 }
 
+// ListServiceLeadTimeSamplesFromEvents returns lead-time samples derived from change->deploy ordering.
+func (c *Database) ListServiceLeadTimeSamplesFromEvents(ctx context.Context, params queries.ListServiceLeadTimeSamplesFromEventsParams) ([]queries.ListServiceLeadTimeSamplesFromEventsRow, error) {
+	return c.Queries.ListServiceLeadTimeSamplesFromEvents(ctx, params)
+}
+
 // ListOrganizationRequiredFields returns required fields for an org.
 func (c *Database) ListOrganizationRequiredFields(ctx context.Context, organizationID int64) ([]queries.ListOrganizationRequiredFieldsRow, error) {
 	return c.Queries.ListOrganizationRequiredFields(ctx, organizationID)

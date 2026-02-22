@@ -121,4 +121,5 @@ type ServiceDetail struct {
 	RiskEvents        []ServiceRiskEvent
 	Dependencies      []string
 	Dependants        []string
+	AvailableServices []string
 }

@@ -211,6 +211,72 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 						}
 						}
 
+						if showServiceDependencies {
+							@components.Card("Dependencies") {
+								<div class="space-y-4">
+									<div class="flex items-center justify-between gap-3">
+										<p class="text-xs text-gray-500">Define upstream dependencies and see downstream impact.</p>
+										<a class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50" href="/services/graph">Open map</a>
+									</div>
+
+									<form class="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3" method="post" action={ "/s/" + url.PathEscape(service.Title) + "/dependencies" }>
+										<input type="hidden" name="_csrf" value={ csrfToken } />
+										<div class="flex flex-col gap-2 sm:flex-row">
+											<input type="text" name="depends_on" list="dependency-suggestions" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200" placeholder="Add dependencies (comma-separated)" />
+											<button type="submit" class="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800">Add dependencies</button>
+										</div>
+										<datalist id="dependency-suggestions">
+											for _, candidate := range service.AvailableServices {
+												<option value={ candidate }></option>
+											}
+										</datalist>
+										<p class="text-xs text-gray-500">Autocomplete uses known services. Separate multiple names with commas.</p>
+									</form>
+
+									<div class="grid gap-4 xl:grid-cols-2">
+										<div>
+											<div class="mb-2 flex items-center justify-between">
+												<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Depends on</div>
+												<span class="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600">{ fmt.Sprint(len(service.Dependencies)) }</span>
+											</div>
+											if len(service.Dependencies) == 0 {
+												<div class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-3 text-sm text-gray-500">No dependencies defined.</div>
+											}
+											<div class="space-y-2">
+												for _, dependency := range service.Dependencies {
+													<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2">
+														<a class="truncate text-sm font-medium text-gray-800 underline-offset-2 hover:underline" href={ "/s/" + url.PathEscape(dependency) }>{ dependency }</a>
+														<form method="post" action={ "/s/" + url.PathEscape(service.Title) + "/dependencies/delete" }>
+															<input type="hidden" name="_csrf" value={ csrfToken } />
+															<input type="hidden" name="depends_on" value={ dependency } />
+															<button type="submit" class="ml-3 inline-flex h-7 items-center rounded-md border border-gray-200 px-2 text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-800">Remove</button>
+														</form>
+													</div>
+												}
+											</div>
+										</div>
+
+										<div>
+											<div class="mb-2 flex items-center justify-between">
+												<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Dependants</div>
+												<span class="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-600">{ fmt.Sprint(len(service.Dependants)) }</span>
+											</div>
+											if len(service.Dependants) == 0 {
+												<div class="rounded-lg border border-dashed border-gray-200 bg-white px-4 py-3 text-sm text-gray-500">No downstream dependants yet.</div>
+											}
+											<div class="space-y-2">
+												for _, dependant := range service.Dependants {
+													<div class="rounded-lg border border-gray-200 bg-white px-3 py-2">
+														<a class="truncate text-sm font-medium text-gray-800 underline-offset-2 hover:underline" href={ "/s/" + url.PathEscape(dependant) }>{ dependant }</a>
+													</div>
+												}
+											</div>
+										</div>
+									</div>
+								</div>
+							}
+						}
+
 						if showServiceDetailInsights {
 						@components.Card("Recent risk and change links") {
 							<div class="space-y-2">
@@ -261,46 +327,6 @@ templ ServicePage(service components.ServiceDetail, showMetadataBadges bool, sho
 									</button>
 								</div>
 							</div>
-						}
-						if showServiceDependencies {
-							@components.Card("Dependencies") {
-								<div class="space-y-4">
-									<form class="flex flex-col gap-2 sm:flex-row" method="post" action={ "/s/" + url.PathEscape(service.Title) + "/dependencies" }>
-										<input type="hidden" name="_csrf" value={ csrfToken } />
-										<input type="text" name="depends_on" class="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200" placeholder="Service name this service depends on" />
-										<button type="submit" class="inline-flex h-10 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm hover:bg-gray-800">Add</button>
-									</form>
-
-									<div>
-										<div class="mb-2 text-xs uppercase tracking-wide text-gray-500">Depends on</div>
-										if len(service.Dependencies) == 0 {
-											<div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">No dependencies defined.</div>
-										}
-										for _, dependency := range service.Dependencies {
-											<div class="mb-2 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-												<a class="font-medium text-gray-800 underline-offset-2 hover:underline" href={ "/s/" + url.PathEscape(dependency) }>{ dependency }</a>
-												<form method="post" action={ "/s/" + url.PathEscape(service.Title) + "/dependencies/delete" }>
-													<input type="hidden" name="_csrf" value={ csrfToken } />
-													<input type="hidden" name="depends_on" value={ dependency } />
-													<button type="submit" class="text-xs text-gray-500 hover:text-gray-800">Remove</button>
-												</form>
-											</div>
-										}
-									</div>
-
-									<div>
-										<div class="mb-2 text-xs uppercase tracking-wide text-gray-500">Dependants</div>
-										if len(service.Dependants) == 0 {
-											<div class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">No services depend on this yet.</div>
-										}
-										for _, dependant := range service.Dependants {
-											<div class="mb-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
-												<a class="font-medium text-gray-800 underline-offset-2 hover:underline" href={ "/s/" + url.PathEscape(dependant) }>{ dependant }</a>
-											</div>
-										}
-									</div>
-								</div>
-							}
 						}
 						if showIntegrationTypeBadges {
 							<div class="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700">Integration: { service.IntegrationType }</div>

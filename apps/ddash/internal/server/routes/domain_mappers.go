@@ -108,6 +108,7 @@ func mapDomainServiceDetail(detail domain.ServiceDetail) components.ServiceDetai
 		RiskEvents:        riskEvents,
 		Dependencies:      detail.Dependencies,
 		Dependants:        detail.Dependants,
+		AvailableServices: detail.AvailableServices,
 	}
 }
 

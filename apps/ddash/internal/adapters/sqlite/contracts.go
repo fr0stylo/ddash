@@ -59,6 +59,7 @@ type storeDatabase interface {
 	GetServiceCurrentState(ctx context.Context, params queries.GetServiceCurrentStateParams) (queries.GetServiceCurrentStateRow, error)
 	GetServiceDeliveryStats30d(ctx context.Context, params queries.GetServiceDeliveryStats30dParams) (queries.GetServiceDeliveryStats30dRow, error)
 	ListServiceChangeLinksRecent(ctx context.Context, params queries.ListServiceChangeLinksRecentParams) ([]queries.ListServiceChangeLinksRecentRow, error)
+	ListServiceLeadTimeSamplesFromEvents(ctx context.Context, params queries.ListServiceLeadTimeSamplesFromEventsParams) ([]queries.ListServiceLeadTimeSamplesFromEventsRow, error)
 
 	ListServiceMetadataByService(ctx context.Context, params queries.ListServiceMetadataByServiceParams) ([]queries.ListServiceMetadataByServiceRow, error)
 	ListServiceMetadataByOrganization(ctx context.Context, organizationID int64) ([]queries.ListServiceMetadataByOrganizationRow, error)

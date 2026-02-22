@@ -1,0 +1,265 @@
+package pages
+
+import "github.com/fr0stylo/ddash/views/base"
+
+templ ServiceGraphPage() {
+	@base.Doc("Service dependency graph") {
+		@base.AppHeader("Service dependency graph", "Visualize dependencies and dependants across services")
+		<main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+			<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+				<div class="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+					<div>
+						<h2 class="text-base font-semibold text-gray-900">Dependency graph</h2>
+						<p class="text-xs text-gray-500">Developer view: click nodes to inspect, drag to pin, use layout controls to reflow.</p>
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
+						<span id="graph-stats" class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs text-gray-600">Loading...</span>
+						<a href="/" class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50">Back to dashboard</a>
+					</div>
+				</div>
+
+				<div class="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+					<div class="flex flex-wrap items-center gap-2">
+						<button id="graph-layout-cose" type="button" class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">Force layout</button>
+						<button id="graph-layout-breadth" type="button" class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">Dependency flow</button>
+						<button id="graph-fit" type="button" class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">Fit</button>
+					</div>
+					<div class="flex items-center gap-2">
+						<input id="graph-search" type="text" class="h-8 w-56 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-gray-200" placeholder="Find service..." />
+						<button id="graph-clear-search" type="button" class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50">Clear</button>
+					</div>
+				</div>
+
+				<div class="grid gap-4 xl:grid-cols-[1fr_280px]">
+					<div>
+						<div id="graph-empty" class="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-sm text-gray-500">Loading graph...</div>
+						<div id="graph-canvas" class="hidden h-[720px] w-full rounded-xl border border-gray-100 bg-gradient-to-b from-white to-gray-50"></div>
+					</div>
+					<aside id="graph-inspector" class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+						<div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Inspector</div>
+						<div id="graph-inspector-empty" class="mt-2 text-sm text-gray-500">Select a service node to inspect relationships.</div>
+						<div id="graph-inspector-content" class="mt-3 hidden space-y-3">
+							<div>
+								<div id="graph-node-name" class="text-sm font-semibold text-gray-900"></div>
+								<div id="graph-node-degree" class="text-xs text-gray-500"></div>
+							</div>
+							<div>
+								<div class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Depends on</div>
+								<div id="graph-node-out" class="space-y-1 text-sm text-gray-700"></div>
+							</div>
+							<div>
+								<div class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Dependants</div>
+								<div id="graph-node-in" class="space-y-1 text-sm text-gray-700"></div>
+							</div>
+							<a id="graph-open-service" class="inline-flex h-8 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-100" href="#">Open service details</a>
+						</div>
+					</aside>
+				</div>
+			</div>
+		</main>
+		<script src="https://unpkg.com/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
+		<script>
+			(() => {
+				const empty = document.getElementById('graph-empty')
+				const canvas = document.getElementById('graph-canvas')
+				const stats = document.getElementById('graph-stats')
+				const search = document.getElementById('graph-search')
+				const clearSearch = document.getElementById('graph-clear-search')
+				const layoutCoseButton = document.getElementById('graph-layout-cose')
+				const layoutBreadthButton = document.getElementById('graph-layout-breadth')
+				const fitButton = document.getElementById('graph-fit')
+
+				const inspectorEmpty = document.getElementById('graph-inspector-empty')
+				const inspectorContent = document.getElementById('graph-inspector-content')
+				const inspectorName = document.getElementById('graph-node-name')
+				const inspectorDegree = document.getElementById('graph-node-degree')
+				const inspectorOut = document.getElementById('graph-node-out')
+				const inspectorIn = document.getElementById('graph-node-in')
+				const inspectorOpen = document.getElementById('graph-open-service')
+
+				let cy = null
+
+				function renderList(el, values, fallback) {
+					el.innerHTML = ''
+					if (!values || values.length === 0) {
+						const emptyRow = document.createElement('div')
+						emptyRow.className = 'text-xs text-gray-500'
+						emptyRow.textContent = fallback
+						el.appendChild(emptyRow)
+						return
+					}
+					for (const value of values) {
+						const link = document.createElement('a')
+						link.className = 'block rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 text-center'
+						link.href = `/s/${encodeURIComponent(value)}`
+						link.textContent = value
+						el.appendChild(link)
+					}
+				}
+
+				function inspectNode(node) {
+					if (!node) {
+						inspectorContent.classList.add('hidden')
+						inspectorEmpty.classList.remove('hidden')
+						return
+					}
+					inspectorEmpty.classList.add('hidden')
+					inspectorContent.classList.remove('hidden')
+
+					const id = node.id()
+					const dependsOn = node.outgoers('node').map((n) => n.id()).sort()
+					const dependants = node.incomers('node').map((n) => n.id()).sort()
+
+					inspectorName.textContent = id
+					inspectorDegree.textContent = `${dependants.length} dependants, ${dependsOn.length} dependencies`
+					renderList(inspectorOut, dependsOn, 'No upstream dependencies')
+					renderList(inspectorIn, dependants, 'No downstream dependants')
+					inspectorOpen.href = `/s/${encodeURIComponent(id)}`
+				}
+
+				function runLayout(name) {
+					if (!cy) return
+					const options = name === 'breadthfirst'
+						? { name: 'breadthfirst', directed: true, spacingFactor: 1.45, avoidOverlap: true, fit: true, padding: 56, animate: true, animationDuration: 320 }
+						: { name: 'cose', animate: true, animationDuration: 360, fit: true, padding: 56, nodeRepulsion: 1400000, idealEdgeLength: 185, edgeElasticity: 110, nodeDimensionsIncludeLabels: true }
+					cy.layout(options).run()
+				}
+
+				function applySearch(value) {
+					if (!cy) return
+					const term = value.trim().toLowerCase()
+					if (!term) {
+						cy.elements().removeClass('is-dim is-match')
+						return
+					}
+					cy.elements().addClass('is-dim').removeClass('is-match')
+					const matches = cy.nodes().filter((n) => n.id().toLowerCase().includes(term))
+					matches.removeClass('is-dim').addClass('is-match')
+					matches.connectedEdges().removeClass('is-dim').addClass('is-match')
+					matches.neighborhood().removeClass('is-dim')
+				}
+
+				fetch('/api/services/graph', { credentials: 'same-origin' })
+					.then((r) => {
+						if (!r.ok) throw new Error(`graph fetch failed: ${r.status}`)
+						return r.json()
+					})
+					.then((graph) => {
+						if (typeof window.cytoscape !== 'function') throw new Error('Cytoscape failed to load')
+						const nodes = Array.isArray(graph.nodes) ? graph.nodes : []
+						const edges = Array.isArray(graph.edges) ? graph.edges : []
+						stats.textContent = `${nodes.length} services, ${edges.length} dependencies`
+
+						if (nodes.length === 0) {
+							empty.textContent = 'No dependency data yet. Add dependencies from service details.'
+							stats.textContent = 'No graph data'
+							layoutCoseButton.disabled = true
+							layoutBreadthButton.disabled = true
+							fitButton.disabled = true
+							return
+						}
+
+						empty.classList.add('hidden')
+						canvas.classList.remove('hidden')
+
+						cy = window.cytoscape({
+							container: canvas,
+							elements: [
+								...nodes.map((node) => ({ data: { id: node.id, label: node.name || node.id } })),
+								...edges.map((edge, i) => ({ data: { id: `e-${i}-${edge.from}-${edge.to}`, source: edge.from, target: edge.to } })),
+							],
+							layout: {
+								name: 'cose',
+								animate: true,
+								animationDuration: 380,
+								fit: true,
+								padding: 56,
+								nodeRepulsion: 1400000,
+								idealEdgeLength: 185,
+								edgeElasticity: 110,
+								nodeDimensionsIncludeLabels: true,
+							},
+							style: [
+								{
+									selector: 'node',
+									style: {
+										'label': 'data(label)',
+										'color': '#334155',
+										'font-size': 12,
+										'font-weight': 500,
+										'text-valign': 'center',
+										'text-halign': 'left',
+										'text-margin-x': 14,
+										'text-background-color': '#ffffff',
+										'text-background-opacity': 0.9,
+										'text-background-padding': 2,
+										'background-color': '#0f172a',
+										'border-color': '#ffffff',
+										'border-width': 2,
+										'width': 16,
+										'height': 16,
+									},
+								},
+								{
+									selector: 'edge',
+									style: {
+										'curve-style': 'bezier',
+										'line-color': '#cbd5e1',
+										'target-arrow-color': '#cbd5e1',
+										'target-arrow-shape': 'triangle',
+										'arrow-scale': 0.85,
+										'width': 1.6,
+										'opacity': 0.9,
+									},
+								},
+								{ selector: '.is-dim', style: { opacity: 0.12 } },
+								{ selector: '.is-match', style: { opacity: 1 } },
+								{
+									selector: '.is-focus',
+									style: {
+										'background-color': '#111827',
+										'width': 18,
+										'height': 18,
+										'font-weight': 700,
+										'color': '#111827',
+									},
+								},
+							],
+						})
+
+						cy.on('tap', 'node', (evt) => {
+							const node = evt.target
+							cy.elements().removeClass('is-focus')
+							node.addClass('is-focus')
+							node.connectedEdges().addClass('is-focus')
+							inspectNode(node)
+						})
+
+						cy.on('tap', (evt) => {
+							if (evt.target === cy) {
+								cy.elements().removeClass('is-focus')
+								inspectNode(null)
+							}
+						})
+
+						layoutCoseButton.addEventListener('click', () => runLayout('cose'))
+						layoutBreadthButton.addEventListener('click', () => runLayout('breadthfirst'))
+						fitButton.addEventListener('click', () => cy.fit(cy.elements(), 36))
+
+						search.addEventListener('input', () => applySearch(search.value))
+						clearSearch.addEventListener('click', () => {
+							search.value = ''
+							applySearch('')
+						})
+					})
+					.catch((err) => {
+						empty.textContent = `Unable to load graph: ${err.message}`
+						stats.textContent = 'Graph unavailable'
+						layoutCoseButton.disabled = true
+						layoutBreadthButton.disabled = true
+						fitButton.disabled = true
+					})
+			})()
+		</script>
+	}
+}

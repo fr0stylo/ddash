@@ -316,6 +316,26 @@ func (s *Store) ListServiceChangeLinksRecent(ctx context.Context, organizationID
 	return out, nil
 }
 
+// ListServiceLeadTimeSamples returns raw lead-time samples (seconds) for change->deploy ordering.
+func (s *Store) ListServiceLeadTimeSamples(ctx context.Context, organizationID int64, sinceMs int64) ([]ports.ServiceLeadTimeSample, error) {
+	rows, err := s.database.ListServiceLeadTimeSamplesFromEvents(ctx, queries.ListServiceLeadTimeSamplesFromEventsParams{
+		OrganizationID: organizationID,
+		SinceMs:        sinceMs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ports.ServiceLeadTimeSample, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ports.ServiceLeadTimeSample{
+			DayUTC:      toString(row.DayUtc),
+			ServiceName: toString(row.ServiceName),
+			LeadSeconds: row.LeadSeconds,
+		})
+	}
+	return out, nil
+}
+
 func mapOrganization(org queries.Organization) ports.Organization {
 	joinCode := ""
 	if org.JoinCode.Valid {

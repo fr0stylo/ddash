@@ -16,6 +16,7 @@ import (
 type dependencyReadStoreFake struct {
 	upsertService   string
 	upsertDependsOn string
+	upsertCalls     [][2]string
 	deleteService   string
 	deleteDependsOn string
 }
@@ -51,6 +52,7 @@ func (f *dependencyReadStoreFake) ListServiceDependants(context.Context, int64, 
 func (f *dependencyReadStoreFake) UpsertServiceDependency(_ context.Context, _ int64, serviceName, dependsOnServiceName string) error {
 	f.upsertService = serviceName
 	f.upsertDependsOn = dependsOnServiceName
+	f.upsertCalls = append(f.upsertCalls, [2]string{serviceName, dependsOnServiceName})
 	return nil
 }
 
@@ -96,6 +98,10 @@ func (f *dependencyReadStoreFake) ListServiceChangeLinksRecent(context.Context, 
 	return nil, nil
 }
 
+func (f *dependencyReadStoreFake) ListServiceLeadTimeSamples(context.Context, int64, int64) ([]ports.ServiceLeadTimeSample, error) {
+	return nil, nil
+}
+
 func TestHandleServiceDependencyUpsert(t *testing.T) {
 	initAuthStoreForTests()
 	e := echo.New()
@@ -120,8 +126,40 @@ func TestHandleServiceDependencyUpsert(t *testing.T) {
 		t.Fatalf("unexpected upsert payload service=%q depends_on=%q", readStore.upsertService, readStore.upsertDependsOn)
 	}
 	location := rec.Header().Get("Location")
-	if !strings.Contains(location, "Dependency+added") {
+	if !strings.Contains(location, "Added+1+dependency") {
 		t.Fatalf("expected success message in redirect, got %q", location)
+	}
+}
+
+func TestHandleServiceDependencyUpsertMultiple(t *testing.T) {
+	initAuthStoreForTests()
+	e := echo.New()
+
+	store := &orgRouteStoreFake{org: ports.Organization{ID: 1, Name: "org-a", Enabled: true}}
+	readStore := &dependencyReadStoreFake{}
+	v := NewViewRoutes(store, readStore, store, ViewExternalConfig{})
+
+	form := url.Values{}
+	form.Set("depends_on", "billing, auth, billing")
+	c, rec := newAuthedContext(t, e, http.MethodPost, "/s/orders/dependencies", form)
+	c.SetParamNames("name")
+	c.SetParamValues("orders")
+
+	if err := v.handleServiceDependencyUpsert(c); err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected redirect, got %d", rec.Code)
+	}
+	if len(readStore.upsertCalls) != 2 {
+		t.Fatalf("expected 2 upsert calls, got %d", len(readStore.upsertCalls))
+	}
+	if readStore.upsertCalls[0][1] != "billing" || readStore.upsertCalls[1][1] != "auth" {
+		t.Fatalf("unexpected upsert calls: %+v", readStore.upsertCalls)
+	}
+	location := rec.Header().Get("Location")
+	if !strings.Contains(location, "Added+2+dependencies") {
+		t.Fatalf("expected multi-add message in redirect, got %q", location)
 	}
 }
 

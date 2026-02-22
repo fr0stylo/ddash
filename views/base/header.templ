@@ -22,6 +22,7 @@ templ AppHeader(title string, subtitle string) {
 							class="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1"
 						>
 							<a href="/" class="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors" :class="navClass(['/','/s/','/onboarding'])">Services</a>
+							<a href="/services/graph" class="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors" :class="navClass(['/services/graph'])">Service map</a>
 							<a href="/deployments" class="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors" :class="navClass(['/deployments'])">Deployments</a>
 							<a href="/settings" class="inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium transition-colors" :class="navClass(['/settings'])">Settings</a>
 							<button

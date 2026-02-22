@@ -110,6 +110,10 @@ func (f *fakeServiceReadStore) ListServiceChangeLinksRecent(context.Context, int
 	return nil, nil
 }
 
+func (f *fakeServiceReadStore) ListServiceLeadTimeSamples(context.Context, int64, int64) ([]ports.ServiceLeadTimeSample, error) {
+	return nil, nil
+}
+
 func TestGetServicesByEnv_AppliesMetadata(t *testing.T) {
 	store := &fakeServiceReadStore{
 		services: []domain.Service{

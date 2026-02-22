@@ -58,6 +58,9 @@ func (v *ViewRoutes) RegisterRoutes(s *echo.Echo) {
 
 	orgAuthed.GET("/", v.handleHome)
 	orgAuthed.GET("/s/:name", v.handleServiceDetails)
+	orgAuthed.GET("/services/graph", v.handleServiceGraphPage)
+	orgAuthed.GET("/api/services/graph", v.handleServiceGraphData)
+	orgAuthed.GET("/api/metrics/lead-time", v.handleLeadTimeMetrics)
 	orgAuthed.POST("/s/:name/metadata", v.handleServiceMetadataUpdate)
 	orgAuthed.POST("/s/:name/dependencies", v.handleServiceDependencyUpsert)
 	orgAuthed.POST("/s/:name/dependencies/delete", v.handleServiceDependencyDelete)

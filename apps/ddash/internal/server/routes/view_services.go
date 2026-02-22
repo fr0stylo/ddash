@@ -3,8 +3,10 @@ package routes
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -65,6 +67,12 @@ func (v *ViewRoutes) handleServiceDetails(c echo.Context) error {
 	if settings.MaskSensitiveMetadataValues {
 		detail.MetadataFields = maskSensitiveFields(detail.MetadataFields)
 	}
+	services, err := v.read.GetServicesByEnv(ctx, orgID, "all")
+	if err != nil {
+		return err
+	}
+	detail.AvailableServices = dedupeServiceNames(services, detail.Title)
+
 	flashMessage := strings.TrimSpace(c.QueryParam("msg"))
 	flashLevel := strings.TrimSpace(c.QueryParam("level"))
 	if flashLevel != "error" {
@@ -273,11 +281,20 @@ func (v *ViewRoutes) handleServiceDependencyUpsert(c echo.Context) error {
 	}
 
 	serviceName := strings.TrimSpace(c.Param("name"))
-	dependsOn := strings.TrimSpace(c.FormValue("depends_on"))
-	if err := v.read.UpsertServiceDependency(ctx, orgID, serviceName, dependsOn); err != nil {
+	added, err := v.read.UpsertServiceDependencies(ctx, orgID, serviceName, c.FormValue("depends_on"))
+	if err != nil {
 		return err
 	}
-	return c.Redirect(http.StatusFound, serviceDetailsRedirectURL(serviceName, "Dependency added", "success"))
+	if added <= 0 {
+		return c.Redirect(http.StatusFound, serviceDetailsRedirectURL(serviceName, "No valid dependencies to add", "error"))
+	}
+	message := fmt.Sprintf("Added %d dependenc", added)
+	if added == 1 {
+		message += "y"
+	} else {
+		message += "ies"
+	}
+	return c.Redirect(http.StatusFound, serviceDetailsRedirectURL(serviceName, message, "success"))
 }
 
 func (v *ViewRoutes) handleServiceDependencyDelete(c echo.Context) error {
@@ -331,4 +348,27 @@ func maskSensitiveFields(fields []appdomain.MetadataField) []appdomain.MetadataF
 		out = append(out, item)
 	}
 	return out
+}
+
+func dedupeServiceNames(services []appdomain.Service, exclude string) []string {
+	exclude = strings.ToLower(strings.TrimSpace(exclude))
+	seen := map[string]bool{}
+	names := make([]string, 0, len(services))
+	for _, service := range services {
+		name := strings.TrimSpace(service.Title)
+		if name == "" {
+			continue
+		}
+		if strings.ToLower(name) == exclude {
+			continue
+		}
+		key := strings.ToLower(name)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }

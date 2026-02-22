@@ -68,6 +68,12 @@ type ServiceChangeLink struct {
 	ActorName     string
 }
 
+type ServiceLeadTimeSample struct {
+	DayUTC      string
+	ServiceName string
+	LeadSeconds int64
+}
+
 // ServiceDependency represents one dependency relationship edge.
 type ServiceDependency struct {
 	ServiceName   string
@@ -102,6 +108,7 @@ type ServiceAnalyticsStore interface {
 	GetServiceCurrentState(ctx context.Context, organizationID int64, service string) (ServiceCurrentState, error)
 	GetServiceDeliveryStats30d(ctx context.Context, organizationID int64, service string) (ServiceDeliveryStats, error)
 	ListServiceChangeLinksRecent(ctx context.Context, organizationID int64, service string, limit int64) ([]ServiceChangeLink, error)
+	ListServiceLeadTimeSamples(ctx context.Context, organizationID int64, sinceMs int64) ([]ServiceLeadTimeSample, error)
 }
 
 // ServiceReadStore is a convenience aggregate for callsites using one store.
