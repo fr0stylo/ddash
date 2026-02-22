@@ -228,3 +228,64 @@ test('join request reject flow works', async ({ page }) => {
   await expect(page.getByText(joinerName)).toHaveCount(0)
   assertNoConsoleErrors()
 })
+
+test('github integration page shows unconfigured state safely', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
+  await devLogin(page, {
+    email: 'e2e-admin@example.local',
+    nickname: 'e2e-admin',
+    name: 'E2E Admin',
+    next: '/settings/integrations/github',
+  })
+
+  await expect(page.getByRole('heading', { name: 'GitHub App Integration' })).toBeVisible()
+  await expect(page.getByText('GitHub App integration is not configured on server.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Start GitHub App install' })).toBeDisabled()
+  await expect(page.getByText('No mapped installations for this organization yet.')).toBeVisible()
+  assertNoConsoleErrors()
+})
+
+test('organization switch, rename, and delete flow works', async ({ page }) => {
+  const assertNoConsoleErrors = trackConsoleErrors(page)
+  const suffix = Date.now().toString()
+  const createdName = `e2e-switch-${suffix}-org`
+  const renamedName = `e2e-switch-${suffix}-renamed`
+
+  await devLogin(page, {
+    email: 'e2e-admin@example.local',
+    nickname: 'e2e-admin',
+    name: 'E2E Admin',
+    next: '/organizations',
+  })
+  await expect(page).toHaveURL(/\/organizations/)
+
+  await page.getByRole('textbox', { name: 'organization-name' }).fill(createdName)
+  await page.getByRole('button', { name: 'Create' }).click()
+  await expect(page.getByText('Organization created and selected')).toBeVisible()
+  await expect(page.getByText('Selected organization:').locator('..')).toContainText(createdName)
+
+  const baseRow = page.locator('xpath=//p[normalize-space()="e2e-org"]/ancestor::div[contains(@class,"py-3")][1]')
+  await expect(baseRow).toBeVisible()
+  await baseRow.locator('form[action="/organizations/switch"]').getByRole('button', { name: 'Switch' }).click()
+  await expect(page).toHaveURL(/\/$/)
+
+  const currentResp = await page.request.get(`${baseURL}/organizations/current`)
+  expect(currentResp.ok()).toBeTruthy()
+  const currentOrg = await currentResp.json()
+  expect(currentOrg.name).toBe('e2e-org')
+
+  await page.goto(`${baseURL}/organizations`)
+  const createdRow = page.locator(`xpath=//p[normalize-space()="${createdName}"]/ancestor::div[contains(@class,"py-3")][1]`)
+  await expect(createdRow).toBeVisible()
+
+  const renameForm = createdRow.locator('form[action="/organizations/rename"]')
+  await renameForm.locator('input[name="name"]').fill(renamedName)
+  await renameForm.getByRole('button', { name: 'Rename' }).click()
+  await expect(page.getByText('Organization renamed')).toBeVisible()
+
+  page.once('dialog', (dialog) => dialog.accept())
+  const renamedRow = page.locator(`xpath=//p[normalize-space()="${renamedName}"]/ancestor::div[contains(@class,"py-3")][1]`)
+  await renamedRow.locator('form[action="/organizations/delete"]').getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByText('Organization deleted')).toBeVisible()
+  assertNoConsoleErrors()
+})

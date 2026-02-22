@@ -25,88 +25,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install e2e dependencies
-        run: npm ci
+      - name: Set up Task
+        uses: arduino/setup-task@v2
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-
-      - name: Start DDash server
-        env:
-          DDASH_ENV: dev
-          DDASH_SESSION_SECRET: e2e-session-secret
-          DDASH_DB_PATH: tmp/e2e
-        run: |
-          mkdir -p tmp
-          go run ./apps/ddash > /tmp/ddash-e2e.log 2>&1 &
-          echo $! > /tmp/ddash-e2e.pid
-
-      - name: Wait for server
-        run: |
-          for i in $(seq 1 40); do
-            if curl -fsS http://localhost:8080/login >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Server did not start" >&2
-          cat /tmp/ddash-e2e.log || true
-          exit 1
-
-      - name: Seed E2E organization and owner
-        run: |
-          sqlite3 "tmp/e2e.sqlite" "
-          INSERT OR IGNORE INTO organizations (id,name,auth_token,join_code,webhook_secret,enabled)
-          VALUES (2001,'e2e-org','e2eauthtoken01','e2ejoincode01','e2esecret01',1);
-          UPDATE organizations SET
-            name='e2e-org',
-            auth_token='e2eauthtoken01',
-            join_code='e2ejoincode01',
-            webhook_secret='e2esecret01',
-            enabled=1
-          WHERE id=2001;
-
-          INSERT OR IGNORE INTO users (id,github_id,email,nickname,name,avatar_url)
-          VALUES (3001,'e2e-admin','e2e-admin@example.local','e2e-admin','E2E Admin','');
-          UPDATE users SET
-            github_id='e2e-admin',
-            nickname='e2e-admin',
-            name='E2E Admin'
-          WHERE email='e2e-admin@example.local';
-
-          INSERT OR IGNORE INTO organization_members (organization_id,user_id,role)
-          SELECT 2001,id,'owner' FROM users WHERE email='e2e-admin@example.local';
-          UPDATE organization_members SET role='owner'
-          WHERE organization_id=2001 AND user_id=(SELECT id FROM users WHERE email='e2e-admin@example.local');
-
-          DELETE FROM organization_join_requests
-          WHERE user_id IN (SELECT id FROM users WHERE email='e2e-joiner@example.local');
-          DELETE FROM organization_members
-          WHERE user_id IN (SELECT id FROM users WHERE email='e2e-joiner@example.local');
-          "
-
-      - name: Publish sample events
-        run: |
-          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment staging -artifact pkg:generic/orders@a1
-          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.upgraded -service orders -environment staging -artifact pkg:generic/orders@a2
-          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment production -artifact pkg:generic/orders@p1
-          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service billing -environment staging -artifact pkg:generic/billing@b1
-
-      - name: Run Playwright smoke tests
-        env:
-          E2E_BASE_URL: http://localhost:8080
-        run: npx playwright test tests/e2e/smoke.spec.js --reporter=line
+      - name: Run E2E via Taskfile
+        run: task e2e PORT=18080
 
       - name: Upload server log on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: ddash-e2e-log
-          path: /tmp/ddash-e2e.log
-
-      - name: Stop server
-        if: always()
-        run: |
-          if [ -f /tmp/ddash-e2e.pid ]; then
-            kill "$(cat /tmp/ddash-e2e.pid)" || true
-          fi
+          name: ddash-e2e-logs
+          path: /tmp/ddash-e2e-*.log
