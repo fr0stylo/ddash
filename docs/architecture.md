@@ -14,31 +14,31 @@ This document describes the current DDash runtime architecture and main boundari
 
 ### HTTP / transport layer
 
-- `internal/server/routes`
+- `apps/ddash/internal/server/routes`
   - Auth routes (GitHub OAuth + session auth)
   - View routes split by domain files (home, services, deployments, settings, organizations)
   - Webhook routes
-- `internal/webhooks/custom`
+- `apps/ddash/internal/webhooks/custom`
   - Thin transport adapter around ingestion service
 
 ### Application layer
 
-- `internal/app/services`
+- `apps/ddash/internal/app/services`
   - Business use cases:
     - service read models
     - metadata update flow
     - organization settings flow
     - webhook event ingestion
-- `internal/app/domain`
+- `apps/ddash/internal/app/domain`
   - Domain-oriented view models
-- `internal/app/ports`
+- `apps/ddash/internal/app/ports`
   - Backend-agnostic interfaces and DTOs
 
-Important rule: the app layer does not import `internal/db/queries` (enforced by `internal/app/services/architecture_guard_test.go`).
+Important rule: the app layer does not import `internal/db/queries` (enforced by `apps/ddash/internal/app/services/architecture_guard_test.go`).
 
 ### Adapter layer
 
-- `internal/adapters/sqlite`
+- `apps/ddash/internal/adapters/sqlite`
   - Implements app ports using SQLite/sqlc
   - Maps app DTOs <-> sqlc query params/rows
   - Owns SQL transaction details for write operations
@@ -76,7 +76,7 @@ Important rule: the app layer does not import `internal/db/queries` (enforced by
 
 ## Runtime composition
 
-Entrypoint: `cmd/server/main.go`
+Entrypoint: `apps/ddash/app.go`
 
 - Initializes logger and env
 - Opens main DB (`DDASH_DB_PATH`)

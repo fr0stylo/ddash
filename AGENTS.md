@@ -4,32 +4,32 @@
 This is a Go deployment dashboard application using Echo framework, templ for HTML templates, SQLite with sqlc for database operations, and Tailwind CSS for styling. The application tracks service deployments across environments.
 
 ## Project Structure & Module Organization
-- `server_startup.go` is the main entrypoint; it wires Echo routes, embeds `public/`, and renders templ components.
-- `internal/server/` contains the Echo server setup and route registration logic.
-- `internal/server/routes/` organizes route handlers by type (view, api, webhooks).
+- `apps/ddash/app.go` is the main DDash entrypoint; it wires Echo routes, embeds `apps/ddash/public/`, and renders templ components.
+- `apps/ddash/internal/server/` contains Echo server setup and route registration logic.
+- `apps/ddash/internal/server/routes/` organizes DDash route handlers by type (view, api, webhooks).
 - `views/` holds UI templates (`.templ`) and their generated Go output (`*_templ.go`). Edit the `.templ` files, not the generated ones.
 - `internal/db/` contains database models, queries, and connection logic using sqlc.
-- `internal/webhooks/` handles external webhook processing (GitHub integration).
-- `internal/renderer/` provides template rendering utilities for HTMX/SSE responses.
-- `assets/` contains source CSS (Tailwind entrypoint); `public/` is the compiled, served static output (`public/styles.css`).
+- `apps/ddash/internal/webhooks/custom/` handles CDEvents webhook transport into ingestion services.
+- `apps/ddash/internal/renderer/` provides template rendering utilities for HTMX/SSE responses.
+- `assets/` contains source CSS (Tailwind entrypoint); `apps/ddash/public/` is the compiled, served static output (`apps/ddash/public/styles.css`).
 - `internal/db/migrations/` contains SQL schema migration files.
 - `go.mod`/`go.sum` define module dependencies, including `templ`, Echo, sqlc, and SQLite.
 
 ## Build, Test, and Development Commands
-- `go run ./cmd/server` starts the HTTP server on `:8080`.
+- `go run ./apps/ddash` starts the HTTP server on `:8080`.
 - `go build ./...` compiles the entire module.
-- `go build -o tmp/ddash ./cmd/server` builds an executable to `tmp/ddash`.
-- `task server` runs the HTTP server (Taskfile).
-- `task build` builds the server binary.
-- `task webhooks:send CONFIG=cmd/webhookgenerator/sample.yaml` sends webhooks from a YAML config.
-- `cmd/webhookgenerator/sample.yaml` shows the webhook generator schema.
+- `go build -o tmp/ddash ./apps/ddash` builds an executable to `tmp/ddash`.
+- `task apps:ddash:run` runs the HTTP server (Taskfile).
+- `task apps:ddash:build` builds the server binary.
+- `task apps:webhookgenerator:run CONFIG=apps/webhookgenerator/sample.yaml` sends webhooks from a YAML config.
+- `apps/webhookgenerator/sample.yaml` shows the webhook generator schema.
 - `task check` should run after every change set.
-- Dev: run `templ generate --watch --proxy="http://localhost:8080" --cmd="go run ./cmd/server"` in parallel with `npx @tailwindcss/cli -i ./assets/styles.css -o ./public/styles.css --watch`.
+- Dev: run `templ generate --watch --proxy="http://localhost:8080" --cmd="go run ./apps/ddash"` in parallel with `npx @tailwindcss/cli -i ./assets/styles.css -o ./apps/ddash/public/styles.css --watch`.
 - `sqlc generate` generates Go code from SQL queries in `internal/db/queries.sql`.
 - `go tool sqlc generate` regenerates sqlc without a local install.
 - `go test ./...` runs all tests in the repository.
-- `go test ./internal/server/...` runs tests for a specific package.
-- `go test -v ./internal/server/routes -run TestSpecificFunction` runs a single test with verbose output.
+- `go test ./apps/ddash/internal/server/...` runs tests for DDash server packages.
+- `go test -v ./apps/ddash/internal/server/routes -run TestSpecificFunction` runs a single route test with verbose output.
 - `go test -run TestXxx ./path/to/package` runs tests matching the pattern in a specific package.
 - `go test -bench ./...` runs all benchmarks.
 - `go test -cover ./...` runs tests with coverage reporting.
@@ -88,7 +88,7 @@ This is a Go deployment dashboard application using Echo framework, templ for HT
 - Use environment variables for configuration (e.g., `GITHUB_WEBHOOK_SECRET`, `DDASH_WEBHOOK_DB_BASE`, `DDASH_DB_PATH`).
 - Database runs on SQLite by default; connection string in `internal/db/con.go`.
 - Server runs on port 8080 by default.
-- Static assets are embedded from `public/` via Go's `embed.FS`.
+- Static assets are embedded from `apps/ddash/public/` via Go's `embed.FS`.
 
 ## Security Considerations
 - Validate webhook signatures using provided secrets.

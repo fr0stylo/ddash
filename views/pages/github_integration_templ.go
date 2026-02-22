@@ -57,7 +57,7 @@ func GitHubIntegrationPage(configured bool, mappings []components.GitHubInstalla
 				return templ_7745c5c3_Err
 			}
 			if !configured {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800\">GitHub ingestor integration is not configured on server. Set `GITHUB_APP_INGESTOR_URL`, `GITHUB_APP_INGESTOR_SETUP_TOKEN`, and `DDASH_PUBLIC_URL`.</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800\">GitHub App integration is not configured on server. Set `GITHUB_APP_INSTALL_URL` and `GITHUB_APP_INGESTOR_SETUP_TOKEN`.</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

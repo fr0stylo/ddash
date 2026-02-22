@@ -52,6 +52,25 @@ type EventStore struct {
 	EventTsMs      int64
 }
 
+type GithubInstallationMapping struct {
+	InstallationID     int64
+	OrganizationID     int64
+	OrganizationLabel  string
+	DefaultEnvironment string
+	Enabled            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type GithubSetupIntent struct {
+	State              string
+	OrganizationID     int64
+	OrganizationLabel  string
+	DefaultEnvironment string
+	ExpiresAt          time.Time
+	CreatedAt          time.Time
+}
+
 type Organization struct {
 	ID            int64
 	Name          string
@@ -189,6 +208,13 @@ type ServiceDeliveryStatsDaily struct {
 	DeployFailureCount int64
 	RollbackCount      int64
 	UpdatedAt          time.Time
+}
+
+type ServiceDependency struct {
+	OrganizationID       int64
+	ServiceName          string
+	DependsOnServiceName string
+	CreatedAt            time.Time
 }
 
 type ServiceEnvState struct {

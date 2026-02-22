@@ -7,7 +7,7 @@ Use this checklist to verify DDash SQLite behavior and collect an apples-to-appl
 Run:
 
 ```bash
-task events:shape DB=data/default ORG=0 WINDOW_DAYS=30 MAX_CONCURRENT_USERS=0
+task apps:dbshape:run DB=data/default ORG=0 WINDOW_DAYS=30 MAX_CONCURRENT_USERS=0
 ```
 
 Current local sample (2026-02-21):
@@ -53,7 +53,7 @@ The CTE/window-based service list still uses temp b-trees for ranking; that is e
 - Enable DB query latency logs (top queries by p95):
 
 ```bash
-DDASH_DB_TIMING=true go run ./cmd/server
+DDASH_DB_TIMING=true go run ./apps/ddash
 ```
 
 - Server logs emit `db_query_latency` entries with:

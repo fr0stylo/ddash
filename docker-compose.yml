@@ -12,7 +12,7 @@ services:
       DDASH_DB_PATH: /data/ddash
       DDASH_SESSION_SECRET: ${DDASH_SESSION_SECRET:-change-me-long-random-secret}
       DDASH_PUBLIC_URL: ${DDASH_PUBLIC_URL:-http://localhost:8080}
-      GITHUB_APP_INGESTOR_URL: ${GITHUB_APP_INGESTOR_URL:-http://githubappingestor:8081}
+      GITHUB_APP_INSTALL_URL: ${GITHUB_APP_INSTALL_URL:-}
       GITHUB_APP_INGESTOR_SETUP_TOKEN: ${GITHUB_APP_INGESTOR_SETUP_TOKEN:-change-me-setup-token}
       DDASH_OTEL_ENABLED: ${DDASH_OTEL_ENABLED:-true}
       DDASH_OTEL_METRICS_CONSOLE: ${DDASH_OTEL_METRICS_CONSOLE:-false}
@@ -37,15 +37,9 @@ services:
       - "8081:8081"
     environment:
       GITHUB_APP_INGESTOR_ADDR: :8081
-      GITHUB_APP_INGESTOR_DB_PATH: /data/githubapp-ingestor
       GITHUB_APP_INGESTOR_SETUP_TOKEN: ${GITHUB_APP_INGESTOR_SETUP_TOKEN:-change-me-setup-token}
-      GITHUB_APP_INSTALL_URL: ${GITHUB_APP_INSTALL_URL:-}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-change-me-webhook-secret}
       DDASH_ENDPOINT: ${DDASH_PUBLIC_URL:-http://ddash:8080}
-      DDASH_AUTH_TOKEN: ${DDASH_AUTH_TOKEN:-}
-      DDASH_WEBHOOK_SECRET: ${DDASH_WEBHOOK_SECRET:-}
-    volumes:
-      - githubapp-data:/data
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.130.1
@@ -97,6 +91,5 @@ services:
 
 volumes:
   ddash-data:
-  githubapp-data:
   prometheus-data:
   grafana-data:

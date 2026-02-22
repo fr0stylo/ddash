@@ -1,0 +1,19 @@
+---
+# Copy to deploy/ansible/group_vars/all.yml and adjust values.
+
+ddash_public_url: "https://ddash.example.com"
+ddash_endpoint_for_ingestor: "http://ddash:8080"
+
+ddash_image: "ghcr.io/fr0stylo/ddash-server:latest"
+github_ingestor_image: "ghcr.io/fr0stylo/ddash-githubappingestor:latest"
+
+ddash_session_secret: "replace-with-long-random-secret"
+github_app_ingestor_setup_token: "replace-with-setup-token"
+github_webhook_secret: "replace-with-webhook-secret"
+github_app_install_url: "https://github.com/apps/your-app/installations/new"
+
+ddash_auth_token: ""
+ddash_webhook_secret: ""
+
+grafana_admin_user: "admin"
+grafana_admin_password: "admin"

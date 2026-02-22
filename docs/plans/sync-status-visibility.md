@@ -34,7 +34,7 @@ When disabled, UI should not show status labels like synced/out-of-sync/unknown.
 
 ### Adapter layer
 
-- Update sqlite mappers in `internal/adapters/sqlite` to map new field.
+- Update sqlite mappers in `apps/ddash/internal/adapters/sqlite` to map new field.
 - Update `UpdateOrganizationSettings` flow to persist `show_sync_status`.
 
 ### Routes/templates

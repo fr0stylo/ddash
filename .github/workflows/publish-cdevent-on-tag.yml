@@ -33,7 +33,7 @@ jobs:
           ENVIRONMENT_NAME: production
           ARTIFACT_REF: pkg:generic/${{ github.event.repository.name }}@${{ github.sha }}
         run: |
-          go run ./cmd/eventpublisher \
+          go run ./apps/eventpublisher \
             -endpoint "$DDASH_ENDPOINT" \
             -token "$DDASH_AUTH_TOKEN" \
             -secret "$DDASH_WEBHOOK_SECRET" \

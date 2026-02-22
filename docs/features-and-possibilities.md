@@ -88,16 +88,16 @@ requests.post(
 
 ### Operational tooling
 
-- Backfill command for legacy data into event store: `task events:backfill`
+- Backfill command for legacy data into event store: `task apps:eventbackfill:run`
 - Sample event seeding helper: `task events:seed`
-- Webhook generator helper: `task webhooks:send`
+- Webhook generator helper: `task apps:webhookgenerator:run`
 - Unified quality gate: `task check` (fmt + vet + lint + test)
 
 ## Architecture capabilities already enabled
 
 - App layer decoupled from sqlc types (`internal/app` uses only app DTOs)
 - Pluggable storage adapters via app ports
-- SQLite adapter isolated under `internal/adapters/sqlite`
+- SQLite adapter isolated under `apps/ddash/internal/adapters/sqlite`
 - Ingestion port uses app-level event record model (transport/database independent)
 
 ## Possibilities (next iterations)

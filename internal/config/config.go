@@ -54,7 +54,7 @@ type IngestionConfig struct {
 
 type IntegrationsConfig struct {
 	PublicURL           string
-	GitHubIngestorURL   string
+	GitHubAppInstallURL string
 	GitHubIngestorToken string
 }
 
@@ -93,7 +93,7 @@ func load(requireSessionSecret bool) (Config, error) {
 	v.SetDefault("ddash_ingest_batch_size", 100)
 	v.SetDefault("ddash_ingest_batch_flush_ms", 50)
 	v.SetDefault("ddash_public_url", "")
-	v.SetDefault("github_app_ingestor_url", "")
+	v.SetDefault("github_app_install_url", "")
 	v.SetDefault("github_app_ingestor_setup_token", "")
 
 	env := resolveEnvironment(v)
@@ -187,7 +187,7 @@ func load(requireSessionSecret bool) (Config, error) {
 		},
 		Integrations: IntegrationsConfig{
 			PublicURL:           strings.TrimSpace(v.GetString("ddash_public_url")),
-			GitHubIngestorURL:   strings.TrimSpace(v.GetString("github_app_ingestor_url")),
+			GitHubAppInstallURL: strings.TrimSpace(v.GetString("github_app_install_url")),
 			GitHubIngestorToken: strings.TrimSpace(v.GetString("github_app_ingestor_setup_token")),
 		},
 	}

@@ -13,6 +13,8 @@ It ingests CDEvents webhooks, stores immutable events in SQLite, and renders pro
 - Playwright checklist: `docs/testing/playwright-checklist.md`
 - Deployment guide: `docs/operations/deployment.md`
 - MVP final checklist: `docs/operations/mvp-final-checklist.md`
+- Ansible deployment: `deploy/ansible/README.md`
+- Monorepo layout: `docs/architecture/monorepo-layout.md`
 
 ## Quick start
 
@@ -20,7 +22,7 @@ It ingests CDEvents webhooks, stores immutable events in SQLite, and renders pro
 
 ```bash
 export DDASH_SESSION_SECRET="replace-with-long-random-secret"
-go run ./cmd/server
+go run ./apps/ddash
 ```
 
 2. Open `http://localhost:8080`
@@ -33,28 +35,35 @@ task check
 
 ## Useful commands
 
-- `task server` - run server
-- `task build` - build binary
-- `task webhooks:send CONFIG=cmd/webhookgenerator/sample.yaml` - send sample webhook stream
-- `task events:publish ENDPOINT=... TOKEN=... SECRET=... SERVICE=billing-api ENV=staging` - publish one CI-style CDEvents delivery event
-- `task events:backfill` - backfill legacy deployments into event store
-- `task events:shape DB=data/default ORG=0 WINDOW_DAYS=30` - print event-store workload shape snapshot
-- `task events:projections:rebuild DB=data/default ORG=0` - rebuild service detail projection tables from event store
+- `task apps:ddash:run` - run DDash app runtime
+- `task apps:ddash:build` - build DDash binary
+- `task apps:githubappingestor:run` - run GitHub ingestor runtime
+- `task apps:webhookgenerator:run CONFIG=apps/webhookgenerator/sample.yaml` - send sample webhook stream
+- `task apps:eventpublisher:run FLAGS="-endpoint ... -token ... -secret ... -type service.deployed -service billing-api -environment staging"` - publish a CDEvent
+- `task apps:eventbackfill:run DB=... FLAGS=...` - backfill legacy deployments into event store
+- `task apps:dbshape:run DB=data/default ORG=0 WINDOW_DAYS=30` - print event-store workload shape snapshot
+- `task apps:projectionsync:run DB=data/default ORG=0` - rebuild service detail projection tables from event store
 - `task load:server`, `task load:seed`, `task load:test:ingest|read|mixed`, `task load:stop` - run local load-test setup (k6)
 - `task load:all` - run complete local load-test flow end-to-end
-- `task githubapp:run` - run GitHub webhook ingestor that converts useful GitHub events to CDEvents and forwards to DDash
 - `task mocks` - regenerate test mocks using mockery
 - `task mvp:check:quick` - run automated MVP preflight checks
 - `task mvp:check:full` - run automated MVP checks including Playwright E2E
 - `task mvp:final:tasks` - print final manual MVP checklist path
+- `task deploy:all` - deploy all docker-compose services
+- `task deploy:all:no-build` - restart all docker-compose services without rebuild
+- `task remote:deploy` - build and deploy DDash + GitHub ingestor systemd services over SSH (expects `.env.prod` and `.env.githubappingestor.prod`)
+
+## Package exports
+
+External consumers can import the nested module:
+
+- `github.com/fr0stylo/ddash/packages/eventpublisher`
 
 GitHub ingestor setup details: `docs/operations/github-app-ingestor.md`
-GitHub ingestor integrated setup UI (default): `http://localhost:8081/setup`
 
 To enable unified DDash-side integration UI (`/settings/integrations/github`), set:
-- `GITHUB_APP_INGESTOR_URL` (e.g. `http://localhost:8081`)
+- `GITHUB_APP_INSTALL_URL` (e.g. `https://github.com/apps/your-app/installations/new`)
 - `GITHUB_APP_INGESTOR_SETUP_TOKEN`
-- `DDASH_PUBLIC_URL` (public base URL of this DDash instance)
 
 ## Deployment (Helm)
 
@@ -121,7 +130,7 @@ export OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
 export OTEL_SERVICE_NAME="ddash"
 export OTEL_SERVICE_VERSION="dev"
 export DDASH_OTEL_SAMPLING_RATIO="0.2"
-go run ./cmd/server
+go run ./apps/ddash
 ```
 
 Notes:
@@ -147,7 +156,7 @@ In compose mode, DDash OTEL metrics are pushed to Prometheus via OTEL Collector 
 Use the event publisher CLI for CI pipelines:
 
 ```bash
-go run ./cmd/eventpublisher \
+go run ./apps/eventpublisher \
   -endpoint "https://ddash.example.com" \
   -token "$DDASH_AUTH_TOKEN" \
   -secret "$DDASH_WEBHOOK_SECRET" \
@@ -192,16 +201,17 @@ Library usage is available via `pkg/eventpublisher` for custom tooling.
 ## GitHub Actions
 
 - CI workflow: `.github/workflows/ci.yml` (build + test on push/PR)
+  - runs `task ci` and `task package:eventpublisher:test`
 - Tag publish workflow: `.github/workflows/publish-cdevent-on-tag.yml`
   - triggers on tags matching `v*`
-  - sends `service.published` event using `cmd/eventpublisher`
+  - sends `service.published` event using `apps/eventpublisher`
   - requires repository secrets:
     - `DDASH_ENDPOINT`
     - `DDASH_AUTH_TOKEN`
     - `DDASH_WEBHOOK_SECRET`
 - Release workflow: `.github/workflows/release.yml`
   - triggers on tags matching `v*`
-  - builds `cmd/server` binaries for linux/darwin/windows
+  - builds `apps/ddash` binaries for linux/darwin/windows
   - creates GitHub release and uploads binaries
 - GHCR publish workflow: `.github/workflows/publish-ghcr.yml`
   - triggers on tags matching `v*`

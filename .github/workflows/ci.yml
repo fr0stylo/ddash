@@ -19,11 +19,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Generate sqlc code
-        run: go tool sqlc generate
+      - name: Set up Task
+        uses: arduino/setup-task@v2
 
-      - name: Build
-        run: go build ./...
+      - name: CI checks via Taskfile
+        run: task ci
 
-      - name: Test
-        run: go test ./...
+      - name: Test exported package modules
+        run: task package:eventpublisher:test

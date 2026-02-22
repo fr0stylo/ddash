@@ -13,7 +13,7 @@ templ GitHubIntegrationPage(configured bool, mappings []components.GitHubInstall
 		<main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
 			<div class="flex flex-col gap-6">
 				if !configured {
-					<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">GitHub ingestor integration is not configured on server. Set `GITHUB_APP_INGESTOR_URL`, `GITHUB_APP_INGESTOR_SETUP_TOKEN`, and `DDASH_PUBLIC_URL`.</div>
+					<div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">GitHub App integration is not configured on server. Set `GITHUB_APP_INSTALL_URL` and `GITHUB_APP_INGESTOR_SETUP_TOKEN`.</div>
 				}
 				@components.Card("Connect installation") {
 					<form method="post" action="/settings/integrations/github/link" class="space-y-4">

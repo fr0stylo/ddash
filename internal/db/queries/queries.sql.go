@@ -8,6 +8,7 @@ package queries
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const appendEventStore = `-- name: AppendEventStore :one
@@ -74,63 +75,6 @@ func (q *Queries) AppendEventStore(ctx context.Context, arg AppendEventStorePara
 	return seq, err
 }
 
-const countEventStore = `-- name: CountEventStore :one
-SELECT COUNT(*)
-FROM event_store
-`
-
-func (q *Queries) CountEventStore(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countEventStore)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countEventStoreByOrganization = `-- name: CountEventStoreByOrganization :one
-SELECT COUNT(*)
-FROM event_store
-WHERE organization_id = ?1
-`
-
-func (q *Queries) CountEventStoreByOrganization(ctx context.Context, organizationID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countEventStoreByOrganization, organizationID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countEventStoreByOrganizationSinceMs = `-- name: CountEventStoreByOrganizationSinceMs :one
-SELECT COUNT(*)
-FROM event_store
-WHERE organization_id = ?1
-  AND event_ts_ms >= ?2
-`
-
-type CountEventStoreByOrganizationSinceMsParams struct {
-	OrganizationID int64
-	SinceMs        int64
-}
-
-func (q *Queries) CountEventStoreByOrganizationSinceMs(ctx context.Context, arg CountEventStoreByOrganizationSinceMsParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countEventStoreByOrganizationSinceMs, arg.OrganizationID, arg.SinceMs)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countEventStoreBySubjectType = `-- name: CountEventStoreBySubjectType :one
-SELECT COUNT(*)
-FROM event_store
-WHERE subject_type = ?1
-`
-
-func (q *Queries) CountEventStoreBySubjectType(ctx context.Context, subjectType string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countEventStoreBySubjectType, subjectType)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countOrganizationOwners = `-- name: CountOrganizationOwners :one
 SELECT COUNT(*)
 FROM organization_members
@@ -142,6 +86,42 @@ func (q *Queries) CountOrganizationOwners(ctx context.Context, organizationID in
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const createGitHubSetupIntent = `-- name: CreateGitHubSetupIntent :exec
+INSERT INTO github_setup_intents (
+  state,
+  organization_id,
+  organization_label,
+  default_environment,
+  expires_at
+)
+VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5
+)
+`
+
+type CreateGitHubSetupIntentParams struct {
+	State              string
+	OrganizationID     int64
+	OrganizationLabel  string
+	DefaultEnvironment string
+	ExpiresAt          time.Time
+}
+
+func (q *Queries) CreateGitHubSetupIntent(ctx context.Context, arg CreateGitHubSetupIntentParams) error {
+	_, err := q.db.ExecContext(ctx, createGitHubSetupIntent,
+		arg.State,
+		arg.OrganizationID,
+		arg.OrganizationLabel,
+		arg.DefaultEnvironment,
+		arg.ExpiresAt,
+	)
+	return err
 }
 
 const createOrganization = `-- name: CreateOrganization :one
@@ -242,6 +222,35 @@ func (q *Queries) CreateOrganizationRequiredField(ctx context.Context, arg Creat
 	return i, err
 }
 
+const deleteGitHubInstallationMapping = `-- name: DeleteGitHubInstallationMapping :execrows
+DELETE FROM github_installation_mappings
+WHERE installation_id = ?1
+  AND organization_id = ?2
+`
+
+type DeleteGitHubInstallationMappingParams struct {
+	InstallationID int64
+	OrganizationID int64
+}
+
+func (q *Queries) DeleteGitHubInstallationMapping(ctx context.Context, arg DeleteGitHubInstallationMappingParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteGitHubInstallationMapping, arg.InstallationID, arg.OrganizationID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteGitHubSetupIntent = `-- name: DeleteGitHubSetupIntent :exec
+DELETE FROM github_setup_intents
+WHERE state = ?1
+`
+
+func (q *Queries) DeleteGitHubSetupIntent(ctx context.Context, state string) error {
+	_, err := q.db.ExecContext(ctx, deleteGitHubSetupIntent, state)
+	return err
+}
+
 const deleteOrganization = `-- name: DeleteOrganization :exec
 DELETE FROM organizations
 WHERE id = ?
@@ -287,6 +296,24 @@ func (q *Queries) DeleteOrganizationRequiredFields(ctx context.Context, organiza
 	return err
 }
 
+const deleteServiceDependency = `-- name: DeleteServiceDependency :exec
+DELETE FROM service_dependencies
+WHERE organization_id = ?1
+  AND service_name = ?2
+  AND depends_on_service_name = ?3
+`
+
+type DeleteServiceDependencyParams struct {
+	OrganizationID       int64
+	ServiceName          string
+	DependsOnServiceName string
+}
+
+func (q *Queries) DeleteServiceDependency(ctx context.Context, arg DeleteServiceDependencyParams) error {
+	_, err := q.db.ExecContext(ctx, deleteServiceDependency, arg.OrganizationID, arg.ServiceName, arg.DependsOnServiceName)
+	return err
+}
+
 const deleteServiceMetadataByService = `-- name: DeleteServiceMetadataByService :exec
 DELETE FROM service_metadata
 WHERE organization_id = ?1
@@ -326,6 +353,39 @@ func (q *Queries) GetDefaultOrganization(ctx context.Context) (Organization, err
 	return i, err
 }
 
+const getGitHubSetupIntentByState = `-- name: GetGitHubSetupIntentByState :one
+SELECT
+  state,
+  organization_id,
+  organization_label,
+  default_environment,
+  expires_at
+FROM github_setup_intents
+WHERE state = ?1
+LIMIT 1
+`
+
+type GetGitHubSetupIntentByStateRow struct {
+	State              string
+	OrganizationID     int64
+	OrganizationLabel  string
+	DefaultEnvironment string
+	ExpiresAt          time.Time
+}
+
+func (q *Queries) GetGitHubSetupIntentByState(ctx context.Context, state string) (GetGitHubSetupIntentByStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getGitHubSetupIntentByState, state)
+	var i GetGitHubSetupIntentByStateRow
+	err := row.Scan(
+		&i.State,
+		&i.OrganizationID,
+		&i.OrganizationLabel,
+		&i.DefaultEnvironment,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const getOrganizationByAuthToken = `-- name: GetOrganizationByAuthToken :one
 SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
 FROM organizations
@@ -335,6 +395,32 @@ LIMIT 1
 
 func (q *Queries) GetOrganizationByAuthToken(ctx context.Context, authToken string) (Organization, error) {
 	row := q.db.QueryRowContext(ctx, getOrganizationByAuthToken, authToken)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.AuthToken,
+		&i.WebhookSecret,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.JoinCode,
+	)
+	return i, err
+}
+
+const getOrganizationByGitHubInstallationID = `-- name: GetOrganizationByGitHubInstallationID :one
+SELECT o.id, o.name, o.auth_token, o.webhook_secret, o.enabled, o.created_at, o.updated_at, o.join_code
+FROM organizations o
+JOIN github_installation_mappings m ON m.organization_id = o.id
+WHERE m.installation_id = ?1
+  AND m.enabled = 1
+  AND o.enabled = 1
+LIMIT 1
+`
+
+func (q *Queries) GetOrganizationByGitHubInstallationID(ctx context.Context, installationID int64) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationByGitHubInstallationID, installationID)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -456,6 +542,12 @@ FROM (
   SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
   FROM organization_preferences
   WHERE organization_preferences.organization_id = ?1
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', created_at) AS INTEGER)), 0) AS version_value
+  FROM service_dependencies
+  WHERE service_dependencies.organization_id = ?1
 )
 `
 
@@ -464,71 +556,6 @@ func (q *Queries) GetOrganizationRenderVersion(ctx context.Context, orgID int64)
 	var version interface{}
 	err := row.Scan(&version)
 	return version, err
-}
-
-const getServiceCurrentState = `-- name: GetServiceCurrentState :one
-SELECT
-  latest_status,
-  latest_event_ts_ms,
-  drift_count,
-  failed_streak
-FROM service_current_state
-WHERE organization_id = ?1
-  AND service_name = ?2
-LIMIT 1
-`
-
-type GetServiceCurrentStateParams struct {
-	OrganizationID int64
-	ServiceName    string
-}
-
-type GetServiceCurrentStateRow struct {
-	LatestStatus    string
-	LatestEventTsMs int64
-	DriftCount      int64
-	FailedStreak    int64
-}
-
-func (q *Queries) GetServiceCurrentState(ctx context.Context, arg GetServiceCurrentStateParams) (GetServiceCurrentStateRow, error) {
-	row := q.db.QueryRowContext(ctx, getServiceCurrentState, arg.OrganizationID, arg.ServiceName)
-	var i GetServiceCurrentStateRow
-	err := row.Scan(
-		&i.LatestStatus,
-		&i.LatestEventTsMs,
-		&i.DriftCount,
-		&i.FailedStreak,
-	)
-	return i, err
-}
-
-const getServiceDeliveryStats30d = `-- name: GetServiceDeliveryStats30d :one
-SELECT
-  COALESCE(SUM(deploy_success_count), 0) AS deploy_success_count,
-  COALESCE(SUM(deploy_failure_count), 0) AS deploy_failure_count,
-  COALESCE(SUM(rollback_count), 0) AS rollback_count
-FROM service_delivery_stats_daily
-WHERE organization_id = ?1
-  AND service_name = ?2
-  AND day_utc >= date('now', '-30 day')
-`
-
-type GetServiceDeliveryStats30dParams struct {
-	OrganizationID int64
-	ServiceName    string
-}
-
-type GetServiceDeliveryStats30dRow struct {
-	DeploySuccessCount interface{}
-	DeployFailureCount interface{}
-	RollbackCount      interface{}
-}
-
-func (q *Queries) GetServiceDeliveryStats30d(ctx context.Context, arg GetServiceDeliveryStats30dParams) (GetServiceDeliveryStats30dRow, error) {
-	row := q.db.QueryRowContext(ctx, getServiceDeliveryStats30d, arg.OrganizationID, arg.ServiceName)
-	var i GetServiceDeliveryStats30dRow
-	err := row.Scan(&i.DeploySuccessCount, &i.DeployFailureCount, &i.RollbackCount)
-	return i, err
 }
 
 const getServiceLatestFromEvents = `-- name: GetServiceLatestFromEvents :one
@@ -767,39 +794,42 @@ func (q *Queries) ListDistinctServiceEnvironmentsFromEvents(ctx context.Context,
 	return items, nil
 }
 
-const listEventStoreDailyVolume = `-- name: ListEventStoreDailyVolume :many
+const listGitHubInstallationMappings = `-- name: ListGitHubInstallationMappings :many
 SELECT
-  date(datetime(event_ts_ms / 1000, 'unixepoch')) AS day,
-  COUNT(*) AS total
-FROM event_store
+  installation_id,
+  organization_id,
+  organization_label,
+  default_environment,
+  enabled
+FROM github_installation_mappings
 WHERE organization_id = ?1
-  AND event_ts_ms >= ?2
-GROUP BY day
-ORDER BY day DESC
-LIMIT ?3
+ORDER BY installation_id ASC
 `
 
-type ListEventStoreDailyVolumeParams struct {
-	OrganizationID int64
-	SinceMs        int64
-	Limit          int64
+type ListGitHubInstallationMappingsRow struct {
+	InstallationID     int64
+	OrganizationID     int64
+	OrganizationLabel  string
+	DefaultEnvironment string
+	Enabled            int64
 }
 
-type ListEventStoreDailyVolumeRow struct {
-	Day   interface{}
-	Total int64
-}
-
-func (q *Queries) ListEventStoreDailyVolume(ctx context.Context, arg ListEventStoreDailyVolumeParams) ([]ListEventStoreDailyVolumeRow, error) {
-	rows, err := q.db.QueryContext(ctx, listEventStoreDailyVolume, arg.OrganizationID, arg.SinceMs, arg.Limit)
+func (q *Queries) ListGitHubInstallationMappings(ctx context.Context, organizationID int64) ([]ListGitHubInstallationMappingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listGitHubInstallationMappings, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListEventStoreDailyVolumeRow
+	var items []ListGitHubInstallationMappingsRow
 	for rows.Next() {
-		var i ListEventStoreDailyVolumeRow
-		if err := rows.Scan(&i.Day, &i.Total); err != nil {
+		var i ListGitHubInstallationMappingsRow
+		if err := rows.Scan(
+			&i.InstallationID,
+			&i.OrganizationID,
+			&i.OrganizationLabel,
+			&i.DefaultEnvironment,
+			&i.Enabled,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1214,59 +1244,68 @@ func (q *Queries) ListPendingOrganizationJoinRequests(ctx context.Context, organ
 	return items, nil
 }
 
-const listServiceChangeLinksRecent = `-- name: ListServiceChangeLinksRecent :many
-SELECT
-  event_ts_ms,
-  chain_id,
-  environment,
-  artifact_id,
-  pipeline_run_id,
-  run_url,
-  actor_name
-FROM service_change_links
+const listServiceDependants = `-- name: ListServiceDependants :many
+SELECT service_name
+FROM service_dependencies
 WHERE organization_id = ?1
-  AND service_name = ?2
-ORDER BY event_ts_ms DESC
-LIMIT ?3
+  AND depends_on_service_name = ?2
+ORDER BY service_name
 `
 
-type ListServiceChangeLinksRecentParams struct {
+type ListServiceDependantsParams struct {
 	OrganizationID int64
 	ServiceName    string
-	Limit          int64
 }
 
-type ListServiceChangeLinksRecentRow struct {
-	EventTsMs     int64
-	ChainID       sql.NullString
-	Environment   string
-	ArtifactID    string
-	PipelineRunID string
-	RunUrl        string
-	ActorName     string
-}
-
-func (q *Queries) ListServiceChangeLinksRecent(ctx context.Context, arg ListServiceChangeLinksRecentParams) ([]ListServiceChangeLinksRecentRow, error) {
-	rows, err := q.db.QueryContext(ctx, listServiceChangeLinksRecent, arg.OrganizationID, arg.ServiceName, arg.Limit)
+func (q *Queries) ListServiceDependants(ctx context.Context, arg ListServiceDependantsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceDependants, arg.OrganizationID, arg.ServiceName)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListServiceChangeLinksRecentRow
+	var items []string
 	for rows.Next() {
-		var i ListServiceChangeLinksRecentRow
-		if err := rows.Scan(
-			&i.EventTsMs,
-			&i.ChainID,
-			&i.Environment,
-			&i.ArtifactID,
-			&i.PipelineRunID,
-			&i.RunUrl,
-			&i.ActorName,
-		); err != nil {
+		var service_name string
+		if err := rows.Scan(&service_name); err != nil {
 			return nil, err
 		}
-		items = append(items, i)
+		items = append(items, service_name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServiceDependencies = `-- name: ListServiceDependencies :many
+SELECT depends_on_service_name
+FROM service_dependencies
+WHERE organization_id = ?1
+  AND service_name = ?2
+ORDER BY depends_on_service_name
+`
+
+type ListServiceDependenciesParams struct {
+	OrganizationID int64
+	ServiceName    string
+}
+
+func (q *Queries) ListServiceDependencies(ctx context.Context, arg ListServiceDependenciesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listServiceDependencies, arg.OrganizationID, arg.ServiceName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var depends_on_service_name string
+		if err := rows.Scan(&depends_on_service_name); err != nil {
+			return nil, err
+		}
+		items = append(items, depends_on_service_name)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -1674,6 +1713,48 @@ func (q *Queries) UpdateOrganizationSecrets(ctx context.Context, arg UpdateOrgan
 	return err
 }
 
+const upsertGitHubInstallationMapping = `-- name: UpsertGitHubInstallationMapping :exec
+INSERT INTO github_installation_mappings (
+  installation_id,
+  organization_id,
+  organization_label,
+  default_environment,
+  enabled
+)
+VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5
+)
+ON CONFLICT(installation_id) DO UPDATE SET
+  organization_id = excluded.organization_id,
+  organization_label = excluded.organization_label,
+  default_environment = excluded.default_environment,
+  enabled = excluded.enabled,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertGitHubInstallationMappingParams struct {
+	InstallationID     int64
+	OrganizationID     int64
+	OrganizationLabel  string
+	DefaultEnvironment string
+	Enabled            int64
+}
+
+func (q *Queries) UpsertGitHubInstallationMapping(ctx context.Context, arg UpsertGitHubInstallationMappingParams) error {
+	_, err := q.db.ExecContext(ctx, upsertGitHubInstallationMapping,
+		arg.InstallationID,
+		arg.OrganizationID,
+		arg.OrganizationLabel,
+		arg.DefaultEnvironment,
+		arg.Enabled,
+	)
+	return err
+}
+
 const upsertOrganizationFeature = `-- name: UpsertOrganizationFeature :exec
 INSERT INTO organization_features (organization_id, feature_key, is_enabled)
 VALUES (?, ?, ?)
@@ -1906,6 +1987,23 @@ type UpsertServiceDeliveryStatsDailyFromEventSeqParams struct {
 
 func (q *Queries) UpsertServiceDeliveryStatsDailyFromEventSeq(ctx context.Context, arg UpsertServiceDeliveryStatsDailyFromEventSeqParams) error {
 	_, err := q.db.ExecContext(ctx, upsertServiceDeliveryStatsDailyFromEventSeq, arg.OrganizationID, arg.Seq)
+	return err
+}
+
+const upsertServiceDependency = `-- name: UpsertServiceDependency :exec
+INSERT INTO service_dependencies (organization_id, service_name, depends_on_service_name)
+VALUES (?1, ?2, ?3)
+ON CONFLICT(organization_id, service_name, depends_on_service_name) DO NOTHING
+`
+
+type UpsertServiceDependencyParams struct {
+	OrganizationID       int64
+	ServiceName          string
+	DependsOnServiceName string
+}
+
+func (q *Queries) UpsertServiceDependency(ctx context.Context, arg UpsertServiceDependencyParams) error {
+	_, err := q.db.ExecContext(ctx, upsertServiceDependency, arg.OrganizationID, arg.ServiceName, arg.DependsOnServiceName)
 	return err
 }
 

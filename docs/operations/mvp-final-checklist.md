@@ -18,7 +18,7 @@ Use this checklist to sign off DDash MVP readiness.
 
 ## C. GitHub App integration smoke
 
-- [ ] Start ingestor: `task githubapp:run`.
+- [ ] Start ingestor: `task apps:githubappingestor:run`.
 - [ ] DDash GitHub integration page (`/settings/integrations/github`) opens and lists mappings.
 - [ ] Start install flow from DDash UI and complete callback.
 - [ ] Mapping appears only for active organization.

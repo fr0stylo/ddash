@@ -1,0 +1,59 @@
+version: '3'
+
+tasks:
+  apps:ddash:run:
+    desc: Run DDash app runtime
+    deps:
+      - generate
+    cmds:
+      - go run ./apps/ddash
+
+  apps:ddash:build:
+    desc: Build DDash app binary
+    cmds:
+      - go build -o tmp/ddash ./apps/ddash
+
+  apps:githubappingestor:run:
+    desc: Run GitHub App ingestor runtime
+    cmds:
+      - go run ./apps/githubappingestor
+
+  apps:webhookgenerator:run:
+    desc: Run webhook generator app
+    cmds:
+      - go run ./apps/webhookgenerator -config={{.CONFIG}}
+    vars:
+      CONFIG: apps/webhookgenerator/sample.yaml
+
+  apps:eventpublisher:run:
+    desc: Run event publisher app
+    cmds:
+      - go run ./apps/eventpublisher {{.FLAGS}}
+    vars:
+      FLAGS: ""
+
+  apps:eventbackfill:run:
+    desc: Run event backfill app
+    cmds:
+      - go run ./apps/eventbackfill -db={{.DB}} {{.FLAGS}}
+    vars:
+      DB: ""
+      FLAGS: ""
+
+  apps:dbshape:run:
+    desc: Run db shape app
+    cmds:
+      - go run ./apps/dbshape -db={{.DB}} -org={{.ORG}} -window-days={{.WINDOW_DAYS}} -max-concurrent-users={{.MAX_CONCURRENT_USERS}}
+    vars:
+      DB: data/default
+      ORG: 0
+      WINDOW_DAYS: 30
+      MAX_CONCURRENT_USERS: 0
+
+  apps:projectionsync:run:
+    desc: Run projection sync app
+    cmds:
+      - go run ./apps/projectionsync -db={{.DB}} -org={{.ORG}}
+    vars:
+      DB: data/default
+      ORG: 0

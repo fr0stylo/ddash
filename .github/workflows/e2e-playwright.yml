@@ -38,7 +38,7 @@ jobs:
           DDASH_DB_PATH: tmp/e2e
         run: |
           mkdir -p tmp
-          go run ./cmd/server > /tmp/ddash-e2e.log 2>&1 &
+          go run ./apps/ddash > /tmp/ddash-e2e.log 2>&1 &
           echo $! > /tmp/ddash-e2e.pid
 
       - name: Wait for server
@@ -87,10 +87,10 @@ jobs:
 
       - name: Publish sample events
         run: |
-          go run ./cmd/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment staging -artifact pkg:generic/orders@a1
-          go run ./cmd/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.upgraded -service orders -environment staging -artifact pkg:generic/orders@a2
-          go run ./cmd/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment production -artifact pkg:generic/orders@p1
-          go run ./cmd/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service billing -environment staging -artifact pkg:generic/billing@b1
+          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment staging -artifact pkg:generic/orders@a1
+          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.upgraded -service orders -environment staging -artifact pkg:generic/orders@a2
+          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment production -artifact pkg:generic/orders@p1
+          go run ./apps/eventpublisher -endpoint http://localhost:8080 -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service billing -environment staging -artifact pkg:generic/billing@b1
 
       - name: Run Playwright smoke tests
         env:

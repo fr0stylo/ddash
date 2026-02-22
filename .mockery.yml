@@ -12,9 +12,9 @@ require-template-schema-exists: true
 template: testify
 template-schema: "{{.Template}}.schema.json"
 packages:
-  github.com/fr0stylo/ddash/internal/app/ports:
+  github.com/fr0stylo/ddash/apps/ddash/internal/app/ports:
     config:
-      dir: internal/app/ports/mocks
+      dir: apps/ddash/internal/app/ports/mocks
       all: false
     interfaces:
       AppStore: {}

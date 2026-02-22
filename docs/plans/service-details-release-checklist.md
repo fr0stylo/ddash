@@ -4,7 +4,7 @@
 
 - [ ] Run migrations in staging and confirm projection tables exist.
 - [ ] Run projection rebuild command and verify row counts are non-zero for active orgs:
-  - `task events:projections:rebuild DB=<db-path> ORG=0`
+  - `task apps:projectionsync:run DB=<db-path> ORG=0`
 - [ ] Validate service details pages for at least 3 representative services.
 - [ ] Verify no cross-org data leaks using two test organizations.
 

@@ -52,7 +52,7 @@ Result:
 1. Rebuild projections:
 
 ```bash
-task events:projections:rebuild DB=data/default ORG=0
+task apps:projectionsync:run DB=data/default ORG=0
 ```
 
 2. Compare key services between legacy event-based views and projected detail cards.
@@ -60,5 +60,5 @@ task events:projections:rebuild DB=data/default ORG=0
 3. Monitor DB timing logs:
 
 ```bash
-DDASH_DB_TIMING=true go run ./cmd/server
+DDASH_DB_TIMING=true go run ./apps/ddash
 ```

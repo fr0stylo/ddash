@@ -3,8 +3,9 @@ data/
 tmp/
 *.log
 .DS_Store
-.env
-.env.prod
+.env*
+!.env.example
+
 tmp/
 bin/
 .serena/

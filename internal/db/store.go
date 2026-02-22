@@ -89,6 +89,41 @@ func (c *Database) ListOrganizationMembers(ctx context.Context, organizationID i
 	return c.Queries.ListOrganizationMembers(ctx, organizationID)
 }
 
+// UpsertGitHubInstallationMapping upserts installation mapping for an organization.
+func (c *Database) UpsertGitHubInstallationMapping(ctx context.Context, params queries.UpsertGitHubInstallationMappingParams) error {
+	return c.Queries.UpsertGitHubInstallationMapping(ctx, params)
+}
+
+// ListGitHubInstallationMappings lists GitHub installation mappings for an organization.
+func (c *Database) ListGitHubInstallationMappings(ctx context.Context, organizationID int64) ([]queries.ListGitHubInstallationMappingsRow, error) {
+	return c.Queries.ListGitHubInstallationMappings(ctx, organizationID)
+}
+
+// DeleteGitHubInstallationMapping deletes one installation mapping for an organization.
+func (c *Database) DeleteGitHubInstallationMapping(ctx context.Context, params queries.DeleteGitHubInstallationMappingParams) (int64, error) {
+	return c.Queries.DeleteGitHubInstallationMapping(ctx, params)
+}
+
+// GetOrganizationByGitHubInstallationID resolves organization for GitHub installation.
+func (c *Database) GetOrganizationByGitHubInstallationID(ctx context.Context, installationID int64) (queries.Organization, error) {
+	return c.Queries.GetOrganizationByGitHubInstallationID(ctx, installationID)
+}
+
+// CreateGitHubSetupIntent stores setup intent state.
+func (c *Database) CreateGitHubSetupIntent(ctx context.Context, params queries.CreateGitHubSetupIntentParams) error {
+	return c.Queries.CreateGitHubSetupIntent(ctx, params)
+}
+
+// GetGitHubSetupIntentByState resolves setup intent by state.
+func (c *Database) GetGitHubSetupIntentByState(ctx context.Context, state string) (queries.GetGitHubSetupIntentByStateRow, error) {
+	return c.Queries.GetGitHubSetupIntentByState(ctx, state)
+}
+
+// DeleteGitHubSetupIntent removes setup intent state.
+func (c *Database) DeleteGitHubSetupIntent(ctx context.Context, state string) error {
+	return c.Queries.DeleteGitHubSetupIntent(ctx, state)
+}
+
 // GetDefaultOrganization returns the first organization.
 func (c *Database) GetDefaultOrganization(ctx context.Context) (queries.Organization, error) {
 	return c.Queries.GetDefaultOrganization(ctx)
@@ -138,6 +173,26 @@ func (c *Database) ListServiceEnvironmentsFromEvents(ctx context.Context, params
 // ListDeploymentHistoryByServiceFromEvents returns service deployment history from event stream.
 func (c *Database) ListDeploymentHistoryByServiceFromEvents(ctx context.Context, params queries.ListDeploymentHistoryByServiceFromEventsParams) ([]queries.ListDeploymentHistoryByServiceFromEventsRow, error) {
 	return c.Queries.ListDeploymentHistoryByServiceFromEvents(ctx, params)
+}
+
+// ListServiceDependencies returns dependencies for one service.
+func (c *Database) ListServiceDependencies(ctx context.Context, params queries.ListServiceDependenciesParams) ([]string, error) {
+	return c.Queries.ListServiceDependencies(ctx, params)
+}
+
+// ListServiceDependants returns dependants for one service.
+func (c *Database) ListServiceDependants(ctx context.Context, params queries.ListServiceDependantsParams) ([]string, error) {
+	return c.Queries.ListServiceDependants(ctx, params)
+}
+
+// UpsertServiceDependency creates one dependency edge.
+func (c *Database) UpsertServiceDependency(ctx context.Context, params queries.UpsertServiceDependencyParams) error {
+	return c.Queries.UpsertServiceDependency(ctx, params)
+}
+
+// DeleteServiceDependency removes one dependency edge.
+func (c *Database) DeleteServiceDependency(ctx context.Context, params queries.DeleteServiceDependencyParams) error {
+	return c.Queries.DeleteServiceDependency(ctx, params)
 }
 
 // GetServiceCurrentState returns current projected status metrics for one service.

@@ -20,6 +20,7 @@ ddash:
     DDASH_ENV: production
     DDASH_PORT: "8080"
     DDASH_PUBLIC_URL: "https://ddash.example.com"
+    GITHUB_APP_INSTALL_URL: ""
 
 githubIngestor:
   enabled: true
@@ -34,18 +35,9 @@ githubIngestor:
     type: ClusterIP
     port: 8081
     targetPort: 8081
-  persistence:
-    enabled: true
-    size: 1Gi
-    storageClassName: ""
   env:
     GITHUB_APP_INGESTOR_ADDR: ":8081"
     GITHUB_APP_INGESTOR_PATH: "/webhooks/github"
-    GITHUB_APP_INGESTOR_SETUP_UI_PATH: "/setup"
-    GITHUB_APP_INGESTOR_SETUP_START_PATH: "/setup/start"
-    GITHUB_APP_INGESTOR_SETUP_CALLBACK_PATH: "/setup/callback"
-    GITHUB_APP_INGESTOR_SETUP_DELETE_PATH: "/setup/mappings/delete"
-    GITHUB_APP_INSTALL_URL: ""
     GITHUB_APP_INGESTOR_DEFAULT_ENV: "production"
     GITHUB_APP_INGESTOR_SOURCE: "github/app"
 
@@ -53,8 +45,6 @@ secrets:
   ddashSessionSecret: "change-me-session-secret"
   githubIngestorSetupToken: "change-me-setup-token"
   githubWebhookSecret: "change-me-webhook-secret"
-  ddashAuthTokenFallback: ""
-  ddashWebhookSecretFallback: ""
 
 ingress:
   ddash:

@@ -36,8 +36,8 @@ spec:
               value: /data/ddash
             - name: DDASH_PUBLIC_URL
               value: {{ .Values.ddash.env.DDASH_PUBLIC_URL | quote }}
-            - name: GITHUB_APP_INGESTOR_URL
-              value: "http://{{ $name }}-githubingestor:{{ .Values.githubIngestor.service.port }}"
+            - name: GITHUB_APP_INSTALL_URL
+              value: {{ .Values.ddash.env.GITHUB_APP_INSTALL_URL | quote }}
             - name: DDASH_SESSION_SECRET
               valueFrom:
                 secretKeyRef:
@@ -100,8 +100,8 @@ spec:
               value: /data/ddash
             - name: DDASH_PUBLIC_URL
               value: {{ .Values.ddash.env.DDASH_PUBLIC_URL | quote }}
-            - name: GITHUB_APP_INGESTOR_URL
-              value: "http://{{ $name }}-githubingestor:{{ .Values.githubIngestor.service.port }}"
+            - name: GITHUB_APP_INSTALL_URL
+              value: {{ .Values.ddash.env.GITHUB_APP_INSTALL_URL | quote }}
             - name: DDASH_SESSION_SECRET
               valueFrom:
                 secretKeyRef:

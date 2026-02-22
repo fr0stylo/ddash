@@ -1,0 +1,97 @@
+---
+- name: Deploy DDash stack with Docker Compose
+  hosts: ddash
+  become: true
+  vars:
+    ddash_deploy_dir: /opt/ddash
+    ddash_data_dir: /var/lib/ddash/ddash-data
+    github_ingestor_data_dir: /var/lib/ddash/github-ingestor-data
+    prometheus_data_dir: /var/lib/ddash/prometheus-data
+    grafana_data_dir: /var/lib/ddash/grafana-data
+
+    ddash_image: ghcr.io/fr0stylo/ddash-server:latest
+    github_ingestor_image: ghcr.io/fr0stylo/ddash-githubappingestor:latest
+
+    ddash_port: 8080
+    github_ingestor_port: 8081
+    grafana_port: 3000
+    prometheus_port: 9090
+    jaeger_ui_port: 16686
+    jaeger_otlp_grpc_port: 4319
+    otel_grpc_port: 4317
+    otel_http_port: 4318
+    otel_prom_export_port: 8889
+
+    ddash_public_url: https://ddash.example.com
+    ddash_endpoint_for_ingestor: http://ddash:8080
+    ddash_secure_cookie: true
+    ddash_otel_enabled: true
+    ddash_otel_metrics_console: false
+    otel_service_version: latest
+
+    otel_exporter_otlp_headers: ""
+    otel_exporter_otlp_traces_headers: ""
+    otel_exporter_otlp_metrics_headers: ""
+
+    # Set these in deploy/ansible/group_vars/all.yml or --extra-vars
+    ddash_session_secret: change-me-long-random-secret
+    github_app_ingestor_setup_token: change-me-setup-token
+    github_webhook_secret: change-me-webhook-secret
+    github_app_install_url: https://github.com/apps/your-app/installations/new
+    ddash_auth_token: ""
+    ddash_webhook_secret: ""
+    grafana_admin_user: admin
+    grafana_admin_password: admin
+
+  tasks:
+    - name: Ensure deploy and data directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ ddash_deploy_dir }}"
+        - "{{ ddash_data_dir }}"
+        - "{{ github_ingestor_data_dir }}"
+        - "{{ prometheus_data_dir }}"
+        - "{{ grafana_data_dir }}"
+
+    - name: Write docker compose stack
+      ansible.builtin.template:
+        src: templates/docker-compose.yml.j2
+        dest: "{{ ddash_deploy_dir }}/docker-compose.yml"
+        mode: "0644"
+
+    - name: Write stack environment file
+      ansible.builtin.template:
+        src: templates/env.j2
+        dest: "{{ ddash_deploy_dir }}/.env"
+        mode: "0600"
+
+    - name: Copy OTEL collector config
+      ansible.builtin.copy:
+        src: ../observability/otel-collector-config.yaml
+        dest: "{{ ddash_deploy_dir }}/otel-collector-config.yaml"
+        mode: "0644"
+
+    - name: Copy Prometheus config
+      ansible.builtin.copy:
+        src: ../observability/prometheus.yml
+        dest: "{{ ddash_deploy_dir }}/prometheus.yml"
+        mode: "0644"
+
+    - name: Copy Grafana datasource config
+      ansible.builtin.copy:
+        src: ../observability/grafana-datasources.yml
+        dest: "{{ ddash_deploy_dir }}/grafana-datasources.yml"
+        mode: "0644"
+
+    - name: Pull latest images
+      ansible.builtin.command:
+        cmd: docker compose --env-file {{ ddash_deploy_dir }}/.env -f {{ ddash_deploy_dir }}/docker-compose.yml pull
+      changed_when: true
+
+    - name: Start stack
+      ansible.builtin.command:
+        cmd: docker compose --env-file {{ ddash_deploy_dir }}/.env -f {{ ddash_deploy_dir }}/docker-compose.yml up -d
+      changed_when: true

@@ -134,6 +134,8 @@ type ServiceDetail struct {
 	Rollbacks30d      int
 	ChangeFailureRate string
 	RiskEvents        []ServiceRiskEvent
+	Dependencies      []string
+	Dependants        []string
 }
 
 type StatusOption struct {

@@ -129,7 +129,7 @@ Create a new entry in the backlog section using this template:
   - removing status from stored projections/events
   - per-service override (org-level only in MVP)
 - **Architecture touchpoints**:
-  - Routes: `internal/server/routes/view.go`, `internal/server/routes/settings.go`
+  - Routes: `apps/ddash/internal/server/routes/view.go`, `apps/ddash/internal/server/routes/settings.go`
   - App services: `ServiceReadService`, `OrganizationConfigService`
   - Ports/adapters: org settings DTOs and sqlite store mapping
   - DB/migrations: add `organizations.show_sync_status` or dedicated settings table field

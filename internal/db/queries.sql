@@ -108,6 +108,84 @@ ORDER BY
   CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
   COALESCE(NULLIF(u.name, ''), u.nickname, u.email);
 
+-- name: UpsertGitHubInstallationMapping :exec
+INSERT INTO github_installation_mappings (
+  installation_id,
+  organization_id,
+  organization_label,
+  default_environment,
+  enabled
+)
+VALUES (
+  sqlc.arg('installation_id'),
+  sqlc.arg('organization_id'),
+  sqlc.arg('organization_label'),
+  sqlc.arg('default_environment'),
+  sqlc.arg('enabled')
+)
+ON CONFLICT(installation_id) DO UPDATE SET
+  organization_id = excluded.organization_id,
+  organization_label = excluded.organization_label,
+  default_environment = excluded.default_environment,
+  enabled = excluded.enabled,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- name: ListGitHubInstallationMappings :many
+SELECT
+  installation_id,
+  organization_id,
+  organization_label,
+  default_environment,
+  enabled
+FROM github_installation_mappings
+WHERE organization_id = sqlc.arg('organization_id')
+ORDER BY installation_id ASC;
+
+-- name: DeleteGitHubInstallationMapping :execrows
+DELETE FROM github_installation_mappings
+WHERE installation_id = sqlc.arg('installation_id')
+  AND organization_id = sqlc.arg('organization_id');
+
+-- name: GetOrganizationByGitHubInstallationID :one
+SELECT o.*
+FROM organizations o
+JOIN github_installation_mappings m ON m.organization_id = o.id
+WHERE m.installation_id = sqlc.arg('installation_id')
+  AND m.enabled = 1
+  AND o.enabled = 1
+LIMIT 1;
+
+-- name: CreateGitHubSetupIntent :exec
+INSERT INTO github_setup_intents (
+  state,
+  organization_id,
+  organization_label,
+  default_environment,
+  expires_at
+)
+VALUES (
+  sqlc.arg('state'),
+  sqlc.arg('organization_id'),
+  sqlc.arg('organization_label'),
+  sqlc.arg('default_environment'),
+  sqlc.arg('expires_at')
+);
+
+-- name: GetGitHubSetupIntentByState :one
+SELECT
+  state,
+  organization_id,
+  organization_label,
+  default_environment,
+  expires_at
+FROM github_setup_intents
+WHERE state = sqlc.arg('state')
+LIMIT 1;
+
+-- name: DeleteGitHubSetupIntent :exec
+DELETE FROM github_setup_intents
+WHERE state = sqlc.arg('state');
+
 -- name: CreateOrganization :one
 INSERT INTO organizations (name, auth_token, join_code, webhook_secret, enabled)
 VALUES (sqlc.arg('name'), sqlc.arg('auth_token'), sqlc.arg('join_code'), sqlc.arg('webhook_secret'), sqlc.arg('enabled'))
@@ -434,37 +512,6 @@ ON CONFLICT(organization_id, service_name) DO UPDATE SET
   failed_streak = excluded.failed_streak,
   updated_at = CURRENT_TIMESTAMP;
 
--- name: CountEventStore :one
-SELECT COUNT(*)
-FROM event_store;
-
--- name: CountEventStoreBySubjectType :one
-SELECT COUNT(*)
-FROM event_store
-WHERE subject_type = sqlc.arg('subject_type');
-
--- name: CountEventStoreByOrganization :one
-SELECT COUNT(*)
-FROM event_store
-WHERE organization_id = sqlc.arg('organization_id');
-
--- name: CountEventStoreByOrganizationSinceMs :one
-SELECT COUNT(*)
-FROM event_store
-WHERE organization_id = sqlc.arg('organization_id')
-  AND event_ts_ms >= sqlc.arg('since_ms');
-
--- name: ListEventStoreDailyVolume :many
-SELECT
-  date(datetime(event_ts_ms / 1000, 'unixepoch')) AS day,
-  COUNT(*) AS total
-FROM event_store
-WHERE organization_id = sqlc.arg('organization_id')
-  AND event_ts_ms >= sqlc.arg('since_ms')
-GROUP BY day
-ORDER BY day DESC
-LIMIT sqlc.arg('limit');
-
 -- name: ListServiceInstancesFromEvents :many
 WITH service_events AS (
   SELECT
@@ -642,41 +689,30 @@ WHERE es.subject_type = 'service'
 ORDER BY es.event_ts_ms DESC, es.seq DESC
 LIMIT sqlc.arg('limit');
 
--- name: GetServiceCurrentState :one
-SELECT
-  latest_status,
-  latest_event_ts_ms,
-  drift_count,
-  failed_streak
-FROM service_current_state
+-- name: ListServiceDependencies :many
+SELECT depends_on_service_name
+FROM service_dependencies
 WHERE organization_id = sqlc.arg('organization_id')
   AND service_name = sqlc.arg('service_name')
-LIMIT 1;
+ORDER BY depends_on_service_name;
 
--- name: GetServiceDeliveryStats30d :one
-SELECT
-  COALESCE(SUM(deploy_success_count), 0) AS deploy_success_count,
-  COALESCE(SUM(deploy_failure_count), 0) AS deploy_failure_count,
-  COALESCE(SUM(rollback_count), 0) AS rollback_count
-FROM service_delivery_stats_daily
+-- name: ListServiceDependants :many
+SELECT service_name
+FROM service_dependencies
 WHERE organization_id = sqlc.arg('organization_id')
-  AND service_name = sqlc.arg('service_name')
-  AND day_utc >= date('now', '-30 day');
+  AND depends_on_service_name = sqlc.arg('service_name')
+ORDER BY service_name;
 
--- name: ListServiceChangeLinksRecent :many
-SELECT
-  event_ts_ms,
-  chain_id,
-  environment,
-  artifact_id,
-  pipeline_run_id,
-  run_url,
-  actor_name
-FROM service_change_links
+-- name: UpsertServiceDependency :exec
+INSERT INTO service_dependencies (organization_id, service_name, depends_on_service_name)
+VALUES (sqlc.arg('organization_id'), sqlc.arg('service_name'), sqlc.arg('depends_on_service_name'))
+ON CONFLICT(organization_id, service_name, depends_on_service_name) DO NOTHING;
+
+-- name: DeleteServiceDependency :exec
+DELETE FROM service_dependencies
 WHERE organization_id = sqlc.arg('organization_id')
   AND service_name = sqlc.arg('service_name')
-ORDER BY event_ts_ms DESC
-LIMIT sqlc.arg('limit');
+  AND depends_on_service_name = sqlc.arg('depends_on_service_name');
 
 -- name: ListLegacyDeploymentsForBackfill :many
 SELECT
@@ -733,4 +769,10 @@ FROM (
   SELECT COALESCE(MAX(CAST(strftime('%s', updated_at) AS INTEGER)), 0) AS version_value
   FROM organization_preferences
   WHERE organization_preferences.organization_id = sqlc.arg('org_id')
+
+  UNION ALL
+
+  SELECT COALESCE(MAX(CAST(strftime('%s', created_at) AS INTEGER)), 0) AS version_value
+  FROM service_dependencies
+  WHERE service_dependencies.organization_id = sqlc.arg('org_id')
 );

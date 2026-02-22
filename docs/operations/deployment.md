@@ -12,7 +12,7 @@ Run DDash:
 
 ```bash
 export DDASH_SESSION_SECRET="replace-with-long-random-secret"
-go run ./cmd/server
+go run ./apps/ddash
 ```
 
 Run GitHub App ingestor in another shell:
@@ -20,12 +20,24 @@ Run GitHub App ingestor in another shell:
 ```bash
 export GITHUB_WEBHOOK_SECRET="replace-me"
 export DDASH_ENDPOINT="http://localhost:8080"
-export DDASH_AUTH_TOKEN="..."
-export DDASH_WEBHOOK_SECRET="..."
-go run ./cmd/githubappingestor
+export GITHUB_APP_INGESTOR_SETUP_TOKEN="replace-me"
+go run ./apps/githubappingestor
 ```
 
 ## 2) Docker Compose
+
+Simple one-command deploy script:
+
+```bash
+cp .env.deploy.example .env.deploy
+# edit .env.deploy values
+./scripts/deploy-all-services.sh
+```
+
+Options:
+
+- `--no-build` restart/recreate without rebuilding images
+- `--env-file /path/to/.env` use custom deployment env file
 
 Use the included stack:
 
@@ -46,8 +58,6 @@ Main env vars to set before running:
 - `DDASH_SESSION_SECRET`
 - `GITHUB_APP_INGESTOR_SETUP_TOKEN`
 - `GITHUB_WEBHOOK_SECRET`
-- `DDASH_AUTH_TOKEN`
-- `DDASH_WEBHOOK_SECRET`
 - `DDASH_PUBLIC_URL` (public DDash URL used by setup flow)
 - `GITHUB_APP_INSTALL_URL` (GitHub App install URL)
 
@@ -125,8 +135,8 @@ DDash unified UI is available at:
 
 Required DDash env vars:
 
-- `GITHUB_APP_INGESTOR_URL`
+- `GITHUB_APP_INSTALL_URL`
 - `GITHUB_APP_INGESTOR_SETUP_TOKEN`
 - `DDASH_PUBLIC_URL`
 
-This flow creates per-organization install intents and stores installation mappings in ingestor state.
+This flow creates per-organization install intents and stores installation mappings in DDash state.

@@ -41,7 +41,7 @@ jobs:
           EXT=""
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
           OUT="dist/ddash-${{ github.ref_name }}-${GOOS}-${GOARCH}${EXT}"
-          go build -ldflags "-s -w" -o "$OUT" ./cmd/server
+          go build -ldflags "-s -w" -o "$OUT" ./apps/ddash
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
