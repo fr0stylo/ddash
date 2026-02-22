@@ -7,142 +7,36 @@ import (
 
 	"github.com/fr0stylo/ddash/apps/ddash/internal/app/domain"
 	"github.com/fr0stylo/ddash/apps/ddash/internal/app/ports"
+	"github.com/fr0stylo/ddash/apps/ddash/internal/app/ports/mocks"
 )
 
-type fakeServiceReadStore struct {
-	services            []domain.Service
-	deployments         []domain.DeploymentRow
-	renderVersion       int64
-	latest              ports.ServiceLatest
-	serviceEnvs         []domain.ServiceEnvironment
-	history             []domain.DeploymentRecord
-	dependencies        []string
-	dependants          []string
-	required            []ports.RequiredField
-	serviceMetadata     []ports.MetadataValue
-	orgMetadata         []ports.ServiceMetadataValue
-	envPriorities       []string
-	discoveredEnvs      []string
-	serviceListEnvInput string
-	serviceOrgIDInput   int64
-	deploymentInputEnv  string
-	deploymentInputSvc  string
-	deploymentOrgID     int64
-}
-
-func (f *fakeServiceReadStore) ListServiceInstances(_ context.Context, organizationID int64, env string) ([]domain.Service, error) {
-	f.serviceOrgIDInput = organizationID
-	f.serviceListEnvInput = env
-	return f.services, nil
-}
-
-func (f *fakeServiceReadStore) ListDeployments(_ context.Context, organizationID int64, env, service string) ([]domain.DeploymentRow, error) {
-	f.deploymentOrgID = organizationID
-	f.deploymentInputEnv = env
-	f.deploymentInputSvc = service
-	return f.deployments, nil
-}
-
-func (f *fakeServiceReadStore) GetOrganizationRenderVersion(context.Context, int64) (int64, error) {
-	if f.renderVersion == 0 {
-		return 1, nil
-	}
-	return f.renderVersion, nil
-}
-
-func (f *fakeServiceReadStore) GetServiceLatest(context.Context, int64, string) (ports.ServiceLatest, error) {
-	return f.latest, nil
-}
-
-func (f *fakeServiceReadStore) ListServiceEnvironments(context.Context, int64, string) ([]domain.ServiceEnvironment, error) {
-	return f.serviceEnvs, nil
-}
-
-func (f *fakeServiceReadStore) ListDeploymentHistory(context.Context, int64, string, int64) ([]domain.DeploymentRecord, error) {
-	return f.history, nil
-}
-
-func (f *fakeServiceReadStore) ListServiceDependencies(context.Context, int64, string) ([]string, error) {
-	return f.dependencies, nil
-}
-
-func (f *fakeServiceReadStore) ListServiceDependants(context.Context, int64, string) ([]string, error) {
-	return f.dependants, nil
-}
-
-func (f *fakeServiceReadStore) UpsertServiceDependency(context.Context, int64, string, string) error {
-	return nil
-}
-
-func (f *fakeServiceReadStore) DeleteServiceDependency(context.Context, int64, string, string) error {
-	return nil
-}
-
-func (f *fakeServiceReadStore) ListRequiredFields(context.Context, int64) ([]ports.RequiredField, error) {
-	return f.required, nil
-}
-
-func (f *fakeServiceReadStore) ListServiceMetadata(context.Context, int64, string) ([]ports.MetadataValue, error) {
-	return f.serviceMetadata, nil
-}
-
-func (f *fakeServiceReadStore) ListServiceMetadataValuesByOrganization(context.Context, int64) ([]ports.ServiceMetadataValue, error) {
-	return f.orgMetadata, nil
-}
-
-func (f *fakeServiceReadStore) ListEnvironmentPriorities(context.Context, int64) ([]string, error) {
-	return f.envPriorities, nil
-}
-
-func (f *fakeServiceReadStore) ListDiscoveredEnvironments(context.Context, int64) ([]string, error) {
-	return f.discoveredEnvs, nil
-}
-
-func (f *fakeServiceReadStore) GetServiceCurrentState(context.Context, int64, string) (ports.ServiceCurrentState, error) {
-	return ports.ServiceCurrentState{}, nil
-}
-
-func (f *fakeServiceReadStore) GetServiceDeliveryStats30d(context.Context, int64, string) (ports.ServiceDeliveryStats, error) {
-	return ports.ServiceDeliveryStats{}, nil
-}
-
-func (f *fakeServiceReadStore) ListServiceChangeLinksRecent(context.Context, int64, string, int64) ([]ports.ServiceChangeLink, error) {
-	return nil, nil
-}
-
-func (f *fakeServiceReadStore) ListServiceLeadTimeSamples(context.Context, int64, int64) ([]ports.ServiceLeadTimeSample, error) {
-	return nil, nil
-}
-
 func TestGetServicesByEnv_AppliesMetadata(t *testing.T) {
-	store := &fakeServiceReadStore{
-		services: []domain.Service{
-			{Title: "svc-a"},
-			{Title: "svc-b"},
-		},
-		required: []ports.RequiredField{
-			{Label: "team", Filterable: true},
-			{Label: "tier", Filterable: false},
-		},
-		orgMetadata: []ports.ServiceMetadataValue{
-			{ServiceName: "svc-a", Label: "team", Value: "Platform"},
-			{ServiceName: "svc-a", Label: "tier", Value: "Backend"},
-			{ServiceName: "svc-b", Label: "team", Value: "Ops"},
-		},
-	}
+	queryStore := mocks.NewMockServiceQueryStore(t)
+	metadataStore := mocks.NewMockServiceMetadataStore(t)
+	analyticsStore := mocks.NewMockServiceAnalyticsStore(t)
 
-	svc := NewServiceReadServiceFromStore(store)
+	queryStore.On("ListServiceInstances", context.Background(), int64(101), "prod").Return([]domain.Service{
+		{Title: "svc-a"},
+		{Title: "svc-b"},
+	}, nil)
+
+	metadataStore.On("ListRequiredFields", context.Background(), int64(101)).Return([]ports.RequiredField{
+		{Label: "team", Filterable: true},
+		{Label: "tier", Filterable: false},
+	}, nil)
+
+	metadataStore.On("ListServiceMetadataValuesByOrganization", context.Background(), int64(101)).Return([]ports.ServiceMetadataValue{
+		{ServiceName: "svc-a", Label: "team", Value: "Platform"},
+		{ServiceName: "svc-a", Label: "tier", Value: "Backend"},
+		{ServiceName: "svc-b", Label: "team", Value: "Ops"},
+	}, nil)
+
+	svc := NewServiceReadService(queryStore, metadataStore, analyticsStore)
 	rows, err := svc.GetServicesByEnv(context.Background(), 101, "prod")
 	if err != nil {
 		t.Fatalf("GetServicesByEnv returned error: %v", err)
 	}
 
-	if store.serviceListEnvInput != "prod" {
-		t.Fatalf("expected env to be passed through, got %q", store.serviceListEnvInput)
-	}
-	if store.serviceOrgIDInput != 101 {
-		t.Fatalf("expected organization id 101, got %d", store.serviceOrgIDInput)
-	}
 	if len(rows) != 2 {
 		t.Fatalf("expected 2 services, got %d", len(rows))
 	}
@@ -163,32 +57,30 @@ func TestGetServicesByEnv_AppliesMetadata(t *testing.T) {
 }
 
 func TestGetDeployments_AppliesMetadataAndReturnsOptions(t *testing.T) {
-	store := &fakeServiceReadStore{
-		deployments: []domain.DeploymentRow{
-			{Service: "svc-a"},
-			{Service: "svc-b"},
-		},
-		required: []ports.RequiredField{
-			{Label: "team", Filterable: true},
-		},
-		orgMetadata: []ports.ServiceMetadataValue{
-			{ServiceName: "svc-a", Label: "team", Value: "Platform"},
-			{ServiceName: "svc-b", Label: "team", Value: "Ops"},
-		},
-	}
+	queryStore := mocks.NewMockServiceQueryStore(t)
+	metadataStore := mocks.NewMockServiceMetadataStore(t)
+	analyticsStore := mocks.NewMockServiceAnalyticsStore(t)
 
-	svc := NewServiceReadServiceFromStore(store)
+	queryStore.On("ListDeployments", context.Background(), int64(202), "dev", "svc-a").Return([]domain.DeploymentRow{
+		{Service: "svc-a"},
+		{Service: "svc-b"},
+	}, nil)
+
+	metadataStore.On("ListRequiredFields", context.Background(), int64(202)).Return([]ports.RequiredField{
+		{Label: "team", Filterable: true},
+	}, nil)
+
+	metadataStore.On("ListServiceMetadataValuesByOrganization", context.Background(), int64(202)).Return([]ports.ServiceMetadataValue{
+		{ServiceName: "svc-a", Label: "team", Value: "Platform"},
+		{ServiceName: "svc-b", Label: "team", Value: "Ops"},
+	}, nil)
+
+	svc := NewServiceReadService(queryStore, metadataStore, analyticsStore)
 	rows, options, err := svc.GetDeployments(context.Background(), 202, "dev", "svc-a")
 	if err != nil {
 		t.Fatalf("GetDeployments returned error: %v", err)
 	}
 
-	if store.deploymentInputEnv != "dev" || store.deploymentInputSvc != "svc-a" {
-		t.Fatalf("expected env/service filters passed to store, got env=%q svc=%q", store.deploymentInputEnv, store.deploymentInputSvc)
-	}
-	if store.deploymentOrgID != 202 {
-		t.Fatalf("expected organization id 202, got %d", store.deploymentOrgID)
-	}
 	if rows[0].MetadataTags != "|team:platform|" {
 		t.Fatalf("expected first row tags |team:platform|, got %q", rows[0].MetadataTags)
 	}
@@ -204,25 +96,34 @@ func TestGetDeployments_AppliesMetadataAndReturnsOptions(t *testing.T) {
 }
 
 func TestGetServiceDetail_ComposesMetadataAndEnvironmentOrder(t *testing.T) {
-	store := &fakeServiceReadStore{
-		latest: ports.ServiceLatest{Name: "svc/a", IntegrationType: "argocd"},
-		required: []ports.RequiredField{
-			{Label: "team", Filterable: true},
-			{Label: "owner", Filterable: false},
-		},
-		serviceMetadata: []ports.MetadataValue{{Label: "team", Value: "platform"}},
-		serviceEnvs: []domain.ServiceEnvironment{
-			{Name: "staging"},
-			{Name: "dev"},
-			{Name: "prod"},
-		},
-		envPriorities: []string{"prod", "staging"},
-		history:       []domain.DeploymentRecord{{Ref: "abc123"}},
-		dependencies:  []string{"db", "redis"},
-		dependants:    []string{"api"},
-	}
+	queryStore := mocks.NewMockServiceQueryStore(t)
+	metadataStore := mocks.NewMockServiceMetadataStore(t)
+	analyticsStore := mocks.NewMockServiceAnalyticsStore(t)
 
-	svc := NewServiceReadServiceFromStore(store)
+	queryStore.On("GetServiceLatest", context.Background(), int64(303), "svc/a").Return(ports.ServiceLatest{Name: "svc/a", IntegrationType: "argocd"}, nil)
+	queryStore.On("ListServiceEnvironments", context.Background(), int64(303), "svc/a").Return([]domain.ServiceEnvironment{
+		{Name: "staging"},
+		{Name: "dev"},
+		{Name: "prod"},
+	}, nil)
+	queryStore.On("ListDeploymentHistory", context.Background(), int64(303), "svc/a", int64(200)).Return([]domain.DeploymentRecord{{Ref: "abc123"}}, nil)
+	queryStore.On("ListServiceDependencies", context.Background(), int64(303), "svc/a").Return([]string{"db", "redis"}, nil)
+	queryStore.On("ListServiceDependants", context.Background(), int64(303), "svc/a").Return([]string{"api"}, nil)
+
+	metadataStore.On("ListRequiredFields", context.Background(), int64(303)).Return([]ports.RequiredField{
+		{Label: "team", Filterable: true},
+		{Label: "owner", Filterable: false},
+	}, nil)
+
+	metadataStore.On("ListServiceMetadata", context.Background(), int64(303), "svc/a").Return([]ports.MetadataValue{{Label: "team", Value: "platform"}}, nil)
+
+	metadataStore.On("ListEnvironmentPriorities", context.Background(), int64(303)).Return([]string{"prod", "staging"}, nil)
+
+	analyticsStore.On("GetServiceCurrentState", context.Background(), int64(303), "svc/a").Return(ports.ServiceCurrentState{}, nil)
+	analyticsStore.On("GetServiceDeliveryStats30d", context.Background(), int64(303), "svc/a").Return(ports.ServiceDeliveryStats{}, nil)
+	analyticsStore.On("ListServiceChangeLinksRecent", context.Background(), int64(303), "svc/a", int64(20)).Return(nil, nil)
+
+	svc := NewServiceReadService(queryStore, metadataStore, analyticsStore)
 	detail, err := svc.GetServiceDetail(context.Background(), 303, "svc/a")
 	if err != nil {
 		t.Fatalf("GetServiceDetail returned error: %v", err)
