@@ -18,7 +18,7 @@ RUN set -eux; \
     fi; \
     CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/ddash ./apps/ddash
 
-FROM alpine:3.21
+FROM alpine:3.23
 RUN apk add --no-cache su-exec && addgroup -S ddash && adduser -S ddash -G ddash
 WORKDIR /app
 
