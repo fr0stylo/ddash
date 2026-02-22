@@ -32,6 +32,8 @@ type storeDatabase interface {
 	CreateGitHubSetupIntent(ctx context.Context, params queries.CreateGitHubSetupIntentParams) error
 	GetGitHubSetupIntentByState(ctx context.Context, state string) (queries.GetGitHubSetupIntentByStateRow, error)
 	DeleteGitHubSetupIntent(ctx context.Context, state string) error
+	UpsertGitLabProjectMapping(ctx context.Context, params queries.UpsertGitLabProjectMappingParams) error
+	GetOrganizationByGitLabProjectID(ctx context.Context, projectID int64) (queries.Organization, error)
 	UpsertOrganizationJoinRequest(ctx context.Context, params queries.UpsertOrganizationJoinRequestParams) error
 	ListPendingOrganizationJoinRequests(ctx context.Context, organizationID int64) ([]queries.ListPendingOrganizationJoinRequestsRow, error)
 	SetOrganizationJoinRequestStatus(ctx context.Context, params queries.SetOrganizationJoinRequestStatusParams) error

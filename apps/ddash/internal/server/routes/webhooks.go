@@ -14,13 +14,15 @@ import (
 type WebhookRoutes struct {
 	custom    *customwebhook.Handler
 	githubApp *customwebhook.GitHubAppHandler
+	gitlabApp *customwebhook.GitLabAppHandler
 }
 
 // NewWebhookRoutes constructs webhook routes.
-func NewWebhookRoutes(storeFactory ports.IngestionStoreFactory, batchConfig appingestion.BatchConfig, installations ports.GitHubInstallationStore, ingestorToken string) *WebhookRoutes {
+func NewWebhookRoutes(storeFactory ports.IngestionStoreFactory, batchConfig appingestion.BatchConfig, installations ports.GitHubInstallationStore, gitlabProjects ports.GitLabProjectStore, ingestorToken string) *WebhookRoutes {
 	return &WebhookRoutes{
 		custom:    customwebhook.NewHandler(storeFactory, batchConfig),
 		githubApp: customwebhook.NewGitHubAppHandler(storeFactory, batchConfig, installations, ingestorToken),
+		gitlabApp: customwebhook.NewGitLabAppHandler(storeFactory, batchConfig, gitlabProjects, ingestorToken),
 	}
 }
 
@@ -29,6 +31,7 @@ func (w *WebhookRoutes) RegisterRoutes(s *echo.Echo) {
 	s.POST("/webhooks/custom", w.handleLegacyCustomWebhook)
 	s.POST("/webhooks/cdevents", w.handleCustomWebhook)
 	s.POST("/webhooks/github-app", w.handleGitHubAppWebhook)
+	s.POST("/webhooks/gitlab-app", w.handleGitLabAppWebhook)
 }
 
 func (w *WebhookRoutes) handleCustomWebhook(c echo.Context) error {
@@ -43,4 +46,8 @@ func (w *WebhookRoutes) handleLegacyCustomWebhook(c echo.Context) error {
 
 func (w *WebhookRoutes) handleGitHubAppWebhook(c echo.Context) error {
 	return w.githubApp.Handle(c.Response(), c.Request())
+}
+
+func (w *WebhookRoutes) handleGitLabAppWebhook(c echo.Context) error {
+	return w.gitlabApp.Handle(c.Response(), c.Request())
 }

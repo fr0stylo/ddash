@@ -1,0 +1,9 @@
+version: '3'
+
+tasks:
+  apps:eventpublisher:run:
+    desc: Run event publisher app
+    cmds:
+      - go run ./apps/eventpublisher {{.FLAGS}}
+    vars:
+      FLAGS: ""

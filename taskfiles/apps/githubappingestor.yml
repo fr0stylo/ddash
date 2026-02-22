@@ -1,0 +1,7 @@
+version: '3'
+
+tasks:
+  apps:githubappingestor:run:
+    desc: Run GitHub App ingestor runtime
+    cmds:
+      - go run ./apps/githubappingestor

@@ -1,0 +1,120 @@
+version: '3'
+
+tasks:
+  events:seed:
+    desc: Seed sample CDEvents service data
+    cmds:
+      - sqlite3 {{.DB}}.sqlite < {{.SEED_FILE}}
+    vars:
+      DB: data/default
+      SEED_FILE: internal/db/seeds/sample_services_event_store.sql
+
+  events:publish:
+    desc: Publish one CDEvents delivery event to DDash
+    cmds:
+      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: service.deployed
+      SERVICE: billing-api
+      ENV: staging
+      FLAGS: ""
+
+  events:publish:examples:
+    desc: Show ready-to-run event publish examples
+    cmds:
+      - task --list
+
+  events:publish:example:service:
+    desc: Example publish for service delivery event
+    cmds:
+      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -artifact={{.ARTIFACT}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: service.deployed
+      SERVICE: billing-api
+      ENV: staging
+      ARTIFACT: pkg:generic/billing-api@demo
+      FLAGS: ""
+
+  events:publish:example:environment:
+    desc: Example publish for environment lifecycle event
+    cmds:
+      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -environment={{.ENV}} -subject-id={{.SUBJECT_ID}} -subject-type=environment {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: environment.modified
+      ENV: staging
+      SUBJECT_ID: environment/staging
+      FLAGS: ""
+
+  events:publish:example:pipeline:
+    desc: Example publish for pipeline custom event
+    cmds:
+      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=pipeline -subject-id={{.SUBJECT_ID}} -pipeline-run={{.PIPELINE_RUN}} -pipeline-url={{.PIPELINE_URL}} -chain-id={{.CHAIN_ID}} -actor={{.ACTOR}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.pipeline.run.started.0.3.0
+      SERVICE: billing-api
+      ENV: staging
+      SUBJECT_ID: pipeline/billing-api
+      PIPELINE_RUN: run-123
+      PIPELINE_URL: https://ci.example.local/runs/123
+      CHAIN_ID: chain-123
+      ACTOR: ci-bot
+      FLAGS: ""
+
+  events:publish:example:change:
+    desc: Example publish for source change custom event
+    cmds:
+      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=change -subject-id={{.SUBJECT_ID}} -chain-id={{.CHAIN_ID}} -actor={{.ACTOR}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.change.merged.0.3.0
+      SERVICE: billing-api
+      ENV: staging
+      SUBJECT_ID: change/pr-42
+      CHAIN_ID: chain-123
+      ACTOR: dev-user
+      FLAGS: ""
+
+  events:publish:example:artifact:
+    desc: Example publish for artifact custom event
+    cmds:
+      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=artifact -subject-id={{.SUBJECT_ID}} -artifact={{.ARTIFACT}} -chain-id={{.CHAIN_ID}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.artifact.promoted.0.3.0
+      SERVICE: billing-api
+      ENV: production
+      SUBJECT_ID: artifact/billing-api
+      ARTIFACT: pkg:generic/billing-api@demo
+      CHAIN_ID: chain-123
+      FLAGS: ""
+
+  events:publish:example:incident:
+    desc: Example publish for incident custom event
+    cmds:
+      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=incident -subject-id={{.SUBJECT_ID}} -actor={{.ACTOR}} {{.FLAGS}}
+    vars:
+      ENDPOINT: ""
+      TOKEN: ""
+      SECRET: ""
+      TYPE: dev.cdevents.incident.opened.0.3.0
+      SERVICE: billing-api
+      ENV: production
+      SUBJECT_ID: incident/inc-1001
+      ACTOR: oncall-bot
+      FLAGS: ""

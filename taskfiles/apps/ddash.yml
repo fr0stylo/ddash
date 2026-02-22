@@ -1,0 +1,14 @@
+version: '3'
+
+tasks:
+  apps:ddash:run:
+    desc: Run DDash app runtime
+    deps:
+      - generate
+    cmds:
+      - go run ./apps/ddash
+
+  apps:ddash:build:
+    desc: Build DDash app binary
+    cmds:
+      - go build -o tmp/ddash ./apps/ddash

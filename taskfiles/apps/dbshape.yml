@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  apps:dbshape:run:
+    desc: Run db shape app
+    cmds:
+      - go run ./apps/dbshape -db={{.DB}} -org={{.ORG}} -window-days={{.WINDOW_DAYS}} -max-concurrent-users={{.MAX_CONCURRENT_USERS}}
+    vars:
+      DB: data/default
+      ORG: 0
+      WINDOW_DAYS: 30
+      MAX_CONCURRENT_USERS: 0

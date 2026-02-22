@@ -1,0 +1,10 @@
+version: '3'
+
+tasks:
+  apps:projectionsync:run:
+    desc: Run projection sync app
+    cmds:
+      - go run ./apps/projectionsync -db={{.DB}} -org={{.ORG}}
+    vars:
+      DB: data/default
+      ORG: 0

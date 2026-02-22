@@ -1,0 +1,24 @@
+version: '3'
+
+tasks:
+  mvp:check:quick:
+    desc: Run fast automated MVP checks (build/test/helm)
+    cmds:
+      - go tool sqlc generate
+      - go tool github.com/vektra/mockery/v3
+      - templ generate
+      - go build ./...
+      - go test ./...
+      - helm lint ./deploy/helm/ddash
+      - helm template ddash ./deploy/helm/ddash >/tmp/ddash-helm-mvp-render.yaml
+
+  mvp:check:full:
+    desc: Run full automated MVP checks including Playwright
+    cmds:
+      - task mvp:check:quick
+      - task e2e
+
+  mvp:final:tasks:
+    desc: Open final manual MVP checklist path
+    cmds:
+      - ls docs/operations/mvp-final-checklist.md

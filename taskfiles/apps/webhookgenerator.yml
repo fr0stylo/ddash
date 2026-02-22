@@ -1,0 +1,9 @@
+version: '3'
+
+tasks:
+  apps:webhookgenerator:run:
+    desc: Run webhook generator app
+    cmds:
+      - go run ./apps/webhookgenerator -config={{.CONFIG}}
+    vars:
+      CONFIG: apps/webhookgenerator/sample.yaml

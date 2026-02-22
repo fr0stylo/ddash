@@ -94,7 +94,7 @@ func Run() error {
 		Enabled:       cfg.Ingestion.BatchEnabled,
 		Size:          cfg.Ingestion.BatchSize,
 		FlushInterval: cfg.IngestionBatchFlushInterval(),
-	}, store, cfg.Integrations.GitHubIngestorToken))
+	}, store, store, cfg.Integrations.GitHubIngestorToken))
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	slog.Info("Starting server", "port", cfg.Server.Port)

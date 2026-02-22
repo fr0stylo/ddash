@@ -124,6 +124,16 @@ func (c *Database) DeleteGitHubSetupIntent(ctx context.Context, state string) er
 	return c.Queries.DeleteGitHubSetupIntent(ctx, state)
 }
 
+// UpsertGitLabProjectMapping upserts GitLab project mapping for an organization.
+func (c *Database) UpsertGitLabProjectMapping(ctx context.Context, params queries.UpsertGitLabProjectMappingParams) error {
+	return c.Queries.UpsertGitLabProjectMapping(ctx, params)
+}
+
+// GetOrganizationByGitLabProjectID resolves organization for GitLab project id.
+func (c *Database) GetOrganizationByGitLabProjectID(ctx context.Context, projectID int64) (queries.Organization, error) {
+	return c.Queries.GetOrganizationByGitLabProjectID(ctx, projectID)
+}
+
 // GetDefaultOrganization returns the first organization.
 func (c *Database) GetDefaultOrganization(ctx context.Context) (queries.Organization, error) {
 	return c.Queries.GetDefaultOrganization(ctx)

@@ -336,6 +336,37 @@ func (s *Store) DeleteGitHubSetupIntent(ctx context.Context, state string) error
 	return s.database.DeleteGitHubSetupIntent(ctx, strings.TrimSpace(state))
 }
 
+// UpsertGitLabProjectMapping upserts GitLab project mapping in DDash.
+func (s *Store) UpsertGitLabProjectMapping(ctx context.Context, mapping ports.GitLabProjectMapping) error {
+	enabled := int64(0)
+	if mapping.Enabled {
+		enabled = 1
+	}
+	return s.database.UpsertGitLabProjectMapping(ctx, queries.UpsertGitLabProjectMappingParams{
+		ProjectID:          mapping.ProjectID,
+		OrganizationID:     mapping.OrganizationID,
+		ProjectPath:        strings.TrimSpace(mapping.ProjectPath),
+		DefaultEnvironment: strings.TrimSpace(mapping.DefaultEnvironment),
+		Enabled:            enabled,
+	})
+}
+
+// GetOrganizationByGitLabProjectID resolves organization from GitLab project id.
+func (s *Store) GetOrganizationByGitLabProjectID(ctx context.Context, projectID int64) (ports.Organization, error) {
+	row, err := s.database.GetOrganizationByGitLabProjectID(ctx, projectID)
+	if err != nil {
+		return ports.Organization{}, err
+	}
+	return ports.Organization{
+		ID:            row.ID,
+		Name:          row.Name,
+		AuthToken:     row.AuthToken,
+		JoinCode:      row.JoinCode.String,
+		WebhookSecret: row.WebhookSecret,
+		Enabled:       row.Enabled != 0,
+	}, nil
+}
+
 // UpsertOrganizationJoinRequest creates or refreshes a pending join request.
 func (s *Store) UpsertOrganizationJoinRequest(ctx context.Context, organizationID, userID int64, requestCode string) error {
 	if organizationID <= 0 || userID <= 0 {

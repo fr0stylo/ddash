@@ -1,0 +1,43 @@
+version: '3'
+
+tasks:
+  remote:install-systemd:
+    desc: Install DDash as a systemd service on remote host
+    cmds:
+      - sudo ./scripts/remote/install-systemd.sh --service-name {{.SERVICE}} --app-dir {{.APP_DIR}} --user {{.USER}} --group {{.GROUP}} --env-file {{.ENV_FILE}}
+    vars:
+      SERVICE: ddash
+      APP_DIR: /opt/ddash
+      USER: ddash
+      GROUP: ddash
+      ENV_FILE: /etc/ddash/ddash.env
+
+  remote:deploy:
+    desc: Build and deploy DDash + GitHub ingestor over SSH
+    deps:
+      - generate
+    cmds:
+      - go build -o tmp/ddash ./apps/ddash
+      - go build -o tmp/githubappingestor ./apps/githubappingestor
+      - ssh {{.SSH_TARGET}} "mkdir -p /tmp/ddash-deploy"
+      - rsync -az tmp/ddash {{.SSH_TARGET}}:/tmp/ddash-deploy/ddash
+      - rsync -az tmp/githubappingestor {{.SSH_TARGET}}:/tmp/ddash-deploy/githubappingestor
+      - rsync -az {{.DDASH_ENV_SOURCE}} {{.SSH_TARGET}}:/tmp/ddash-deploy/ddash.env
+      - rsync -az {{.INGESTOR_ENV_SOURCE}} {{.SSH_TARGET}}:/tmp/ddash-deploy/githubappingestor.env
+      - rsync -az scripts/remote/install-systemd.sh {{.SSH_TARGET}}:/tmp/ddash-deploy/install-systemd.sh
+      - ssh {{.SSH_TARGET}} "chmod +x /tmp/ddash-deploy/install-systemd.sh && sudo mkdir -p {{.DDASH_APP_DIR}} {{.DDASH_APP_DIR}}/tmp {{.DDASH_APP_DIR}}/scripts/remote {{.INGESTOR_APP_DIR}} {{.INGESTOR_APP_DIR}}/tmp {{.INGESTOR_APP_DIR}}/scripts/remote && sudo install -m 0755 /tmp/ddash-deploy/ddash {{.DDASH_APP_DIR}}/tmp/ddash && sudo install -m 0755 /tmp/ddash-deploy/githubappingestor {{.INGESTOR_APP_DIR}}/tmp/githubappingestor && sudo install -m 0755 /tmp/ddash-deploy/install-systemd.sh {{.DDASH_APP_DIR}}/scripts/remote/install-systemd.sh && sudo install -m 0755 /tmp/ddash-deploy/install-systemd.sh {{.INGESTOR_APP_DIR}}/scripts/remote/install-systemd.sh && sudo mkdir -p \"$(dirname {{.DDASH_ENV_FILE}})\" \"$(dirname {{.INGESTOR_ENV_FILE}})\" && sudo install -m 0640 /tmp/ddash-deploy/ddash.env {{.DDASH_ENV_FILE}} && sudo install -m 0640 /tmp/ddash-deploy/githubappingestor.env {{.INGESTOR_ENV_FILE}} && sudo {{.DDASH_APP_DIR}}/scripts/remote/install-systemd.sh --service-name {{.DDASH_SERVICE}} --app-dir {{.DDASH_APP_DIR}} --user {{.DDASH_SERVICE_USER}} --group {{.DDASH_SERVICE_GROUP}} --env-file {{.DDASH_ENV_FILE}} && sudo {{.INGESTOR_APP_DIR}}/scripts/remote/install-systemd.sh --service-name {{.INGESTOR_SERVICE}} --app-dir {{.INGESTOR_APP_DIR}} --user {{.INGESTOR_SERVICE_USER}} --group {{.INGESTOR_SERVICE_GROUP}} --env-file {{.INGESTOR_ENV_FILE}} && sudo systemctl restart {{.DDASH_SERVICE}} {{.INGESTOR_SERVICE}}"
+      - ssh {{.SSH_TARGET}} "rm -rf /tmp/ddash-deploy"
+    vars:
+      SSH_TARGET: hetzner
+      DDASH_APP_DIR: /opt/ddash
+      DDASH_SERVICE: ddash
+      DDASH_SERVICE_USER: ddash
+      DDASH_SERVICE_GROUP: ddash
+      DDASH_ENV_FILE: /etc/ddash/ddash.env
+      DDASH_ENV_SOURCE: .env.prod
+      INGESTOR_APP_DIR: /opt/ddash-githubappingestor
+      INGESTOR_SERVICE: ddash-githubappingestor
+      INGESTOR_SERVICE_USER: ddash
+      INGESTOR_SERVICE_GROUP: ddash
+      INGESTOR_ENV_FILE: /etc/ddash/githubappingestor.env
+      INGESTOR_ENV_SOURCE: .env.githubappingestor.prod

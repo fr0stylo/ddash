@@ -124,6 +124,19 @@ type GitHubSetupIntent struct {
 	ExpiresAt          time.Time
 }
 
+type GitLabProjectMapping struct {
+	ProjectID          int64
+	OrganizationID     int64
+	ProjectPath        string
+	DefaultEnvironment string
+	Enabled            bool
+}
+
+type GitLabProjectStore interface {
+	UpsertGitLabProjectMapping(ctx context.Context, mapping GitLabProjectMapping) error
+	GetOrganizationByGitLabProjectID(ctx context.Context, projectID int64) (Organization, error)
+}
+
 // UpsertUserInput contains user identity fields captured during auth callback.
 type UpsertUserInput struct {
 	GitHubID  string

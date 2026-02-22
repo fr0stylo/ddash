@@ -1,0 +1,10 @@
+version: '3'
+
+tasks:
+  apps:eventbackfill:run:
+    desc: Run event backfill app
+    cmds:
+      - go run ./apps/eventbackfill -db={{.DB}} {{.FLAGS}}
+    vars:
+      DB: ""
+      FLAGS: ""

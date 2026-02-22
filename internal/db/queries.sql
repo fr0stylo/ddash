@@ -155,6 +155,37 @@ WHERE m.installation_id = sqlc.arg('installation_id')
   AND o.enabled = 1
 LIMIT 1;
 
+-- name: UpsertGitLabProjectMapping :exec
+INSERT INTO gitlab_project_mappings (
+  project_id,
+  organization_id,
+  project_path,
+  default_environment,
+  enabled
+)
+VALUES (
+  sqlc.arg('project_id'),
+  sqlc.arg('organization_id'),
+  sqlc.arg('project_path'),
+  sqlc.arg('default_environment'),
+  sqlc.arg('enabled')
+)
+ON CONFLICT(project_id) DO UPDATE SET
+  organization_id = excluded.organization_id,
+  project_path = excluded.project_path,
+  default_environment = excluded.default_environment,
+  enabled = excluded.enabled,
+  updated_at = CURRENT_TIMESTAMP;
+
+-- name: GetOrganizationByGitLabProjectID :one
+SELECT o.*
+FROM organizations o
+JOIN gitlab_project_mappings m ON m.organization_id = o.id
+WHERE m.project_id = sqlc.arg('project_id')
+  AND m.enabled = 1
+  AND o.enabled = 1
+LIMIT 1;
+
 -- name: CreateGitHubSetupIntent :exec
 INSERT INTO github_setup_intents (
   state,

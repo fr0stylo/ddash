@@ -1,0 +1,7 @@
+version: '3'
+
+tasks:
+  apps:gitlabingestor:run:
+    desc: Run GitLab ingestor runtime
+    cmds:
+      - go run ./apps/gitlabingestor

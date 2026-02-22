@@ -435,6 +435,32 @@ func (q *Queries) GetOrganizationByGitHubInstallationID(ctx context.Context, ins
 	return i, err
 }
 
+const getOrganizationByGitLabProjectID = `-- name: GetOrganizationByGitLabProjectID :one
+SELECT o.id, o.name, o.auth_token, o.webhook_secret, o.enabled, o.created_at, o.updated_at, o.join_code
+FROM organizations o
+JOIN gitlab_project_mappings m ON m.organization_id = o.id
+WHERE m.project_id = ?1
+  AND m.enabled = 1
+  AND o.enabled = 1
+LIMIT 1
+`
+
+func (q *Queries) GetOrganizationByGitLabProjectID(ctx context.Context, projectID int64) (Organization, error) {
+	row := q.db.QueryRowContext(ctx, getOrganizationByGitLabProjectID, projectID)
+	var i Organization
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.AuthToken,
+		&i.WebhookSecret,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.JoinCode,
+	)
+	return i, err
+}
+
 const getOrganizationByID = `-- name: GetOrganizationByID :one
 SELECT id, name, auth_token, webhook_secret, enabled, created_at, updated_at, join_code
 FROM organizations
@@ -1749,6 +1775,48 @@ func (q *Queries) UpsertGitHubInstallationMapping(ctx context.Context, arg Upser
 		arg.InstallationID,
 		arg.OrganizationID,
 		arg.OrganizationLabel,
+		arg.DefaultEnvironment,
+		arg.Enabled,
+	)
+	return err
+}
+
+const upsertGitLabProjectMapping = `-- name: UpsertGitLabProjectMapping :exec
+INSERT INTO gitlab_project_mappings (
+  project_id,
+  organization_id,
+  project_path,
+  default_environment,
+  enabled
+)
+VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5
+)
+ON CONFLICT(project_id) DO UPDATE SET
+  organization_id = excluded.organization_id,
+  project_path = excluded.project_path,
+  default_environment = excluded.default_environment,
+  enabled = excluded.enabled,
+  updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertGitLabProjectMappingParams struct {
+	ProjectID          int64
+	OrganizationID     int64
+	ProjectPath        string
+	DefaultEnvironment string
+	Enabled            int64
+}
+
+func (q *Queries) UpsertGitLabProjectMapping(ctx context.Context, arg UpsertGitLabProjectMappingParams) error {
+	_, err := q.db.ExecContext(ctx, upsertGitLabProjectMapping,
+		arg.ProjectID,
+		arg.OrganizationID,
+		arg.ProjectPath,
 		arg.DefaultEnvironment,
 		arg.Enabled,
 	)

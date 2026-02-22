@@ -71,6 +71,16 @@ type GithubSetupIntent struct {
 	CreatedAt          time.Time
 }
 
+type GitlabProjectMapping struct {
+	ProjectID          int64
+	OrganizationID     int64
+	ProjectPath        string
+	DefaultEnvironment string
+	Enabled            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
 type Organization struct {
 	ID            int64
 	Name          string

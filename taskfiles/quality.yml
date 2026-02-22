@@ -1,0 +1,61 @@
+version: '3'
+
+tasks:
+  sqlc:
+    desc: Regenerate sqlc query code
+    cmds:
+      - go tool sqlc generate
+
+  mocks:
+    desc: Regenerate test mocks via mockery
+    cmds:
+      - go tool github.com/vektra/mockery/v3
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - gofmt -w .
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./...
+
+  link:
+    desc: Run golangci-lint (alias)
+    cmds:
+      - golangci-lint run
+
+  generate:
+    desc: Run all code generation tasks
+    deps:
+      - sqlc
+      - mocks
+    cmds:
+      - templ generate
+      - npx @tailwindcss/cli -i ./assets/styles.css -o ./apps/ddash/public/styles.css
+
+  check:
+    desc: Run fmt, vet, lint, and tests
+    deps:
+      - fmt
+      - vet
+      - lint
+      - test
+
+  ci:
+    desc: Run CI pipeline checks (sqlc, build, test)
+    cmds:
+      - task sqlc
+      - go build ./...
+      - task test

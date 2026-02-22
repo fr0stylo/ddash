@@ -1,0 +1,8 @@
+version: '3'
+
+tasks:
+  package:eventpublisher:test:
+    desc: Run tests for exported eventpublisher module
+    cmds:
+      - go test ./...
+    dir: packages/eventpublisher

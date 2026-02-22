@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  deploy:all:
+    desc: Deploy all docker-compose services locally
+    cmds:
+      - ./scripts/deploy-all-services.sh
+
+  deploy:all:no-build:
+    desc: Restart all docker-compose services without rebuilding
+    cmds:
+      - ./scripts/deploy-all-services.sh --no-build

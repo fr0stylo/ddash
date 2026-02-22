@@ -1,462 +1,51 @@
 version: '3'
 
 includes:
-  app_tasks:
-    taskfile: ./taskfiles/apps.yml
+  app_ddash_tasks:
+    taskfile: ./taskfiles/apps/ddash.yml
     flatten: true
-
-tasks:
-  events:seed:
-    desc: Seed sample CDEvents service data
-    cmds:
-      - sqlite3 {{.DB}}.sqlite < {{.SEED_FILE}}
-    vars:
-      DB: data/default
-      SEED_FILE: internal/db/seeds/sample_services_event_store.sql
-
-  events:publish:
-    desc: Publish one CDEvents delivery event to DDash
-    cmds:
-      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} {{.FLAGS}}
-    vars:
-      ENDPOINT: ""
-      TOKEN: ""
-      SECRET: ""
-      TYPE: service.deployed
-      SERVICE: billing-api
-      ENV: staging
-      FLAGS: ""
-
-  events:publish:examples:
-    desc: Show ready-to-run event publish examples
-    cmds:
-      - task --list
-
-  events:publish:example:service:
-    desc: Example publish for service delivery event
-    cmds:
-      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -artifact={{.ARTIFACT}} {{.FLAGS}}
-    vars:
-      ENDPOINT: ""
-      TOKEN: ""
-      SECRET: ""
-      TYPE: service.deployed
-      SERVICE: billing-api
-      ENV: staging
-      ARTIFACT: pkg:generic/billing-api@demo
-      FLAGS: ""
-
-  events:publish:example:environment:
-    desc: Example publish for environment lifecycle event
-    cmds:
-      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -environment={{.ENV}} -subject-id={{.SUBJECT_ID}} -subject-type=environment {{.FLAGS}}
-    vars:
-      ENDPOINT: ""
-      TOKEN: ""
-      SECRET: ""
-      TYPE: environment.modified
-      ENV: staging
-      SUBJECT_ID: environment/staging
-      FLAGS: ""
-
-  events:publish:example:pipeline:
-    desc: Example publish for pipeline custom event
-    cmds:
-      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=pipeline -subject-id={{.SUBJECT_ID}} -pipeline-run={{.PIPELINE_RUN}} -pipeline-url={{.PIPELINE_URL}} -chain-id={{.CHAIN_ID}} -actor={{.ACTOR}} {{.FLAGS}}
-    vars:
-      ENDPOINT: ""
-      TOKEN: ""
-      SECRET: ""
-      TYPE: dev.cdevents.pipeline.run.started.0.3.0
-      SERVICE: billing-api
-      ENV: staging
-      SUBJECT_ID: pipeline/billing-api
-      PIPELINE_RUN: run-123
-      PIPELINE_URL: https://ci.example.local/runs/123
-      CHAIN_ID: chain-123
-      ACTOR: ci-bot
-      FLAGS: ""
-
-  events:publish:example:change:
-    desc: Example publish for source change custom event
-    cmds:
-      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=change -subject-id={{.SUBJECT_ID}} -chain-id={{.CHAIN_ID}} -actor={{.ACTOR}} {{.FLAGS}}
-    vars:
-      ENDPOINT: ""
-      TOKEN: ""
-      SECRET: ""
-      TYPE: dev.cdevents.change.merged.0.3.0
-      SERVICE: billing-api
-      ENV: staging
-      SUBJECT_ID: change/pr-42
-      CHAIN_ID: chain-123
-      ACTOR: dev-user
-      FLAGS: ""
-
-  events:publish:example:artifact:
-    desc: Example publish for artifact custom event
-    cmds:
-      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=artifact -subject-id={{.SUBJECT_ID}} -artifact={{.ARTIFACT}} -chain-id={{.CHAIN_ID}} {{.FLAGS}}
-    vars:
-      ENDPOINT: ""
-      TOKEN: ""
-      SECRET: ""
-      TYPE: dev.cdevents.artifact.promoted.0.3.0
-      SERVICE: billing-api
-      ENV: production
-      SUBJECT_ID: artifact/billing-api
-      ARTIFACT: pkg:generic/billing-api@demo
-      CHAIN_ID: chain-123
-      FLAGS: ""
-
-  events:publish:example:incident:
-    desc: Example publish for incident custom event
-    cmds:
-      - go run ./apps/eventpublisher -endpoint={{.ENDPOINT}} -token={{.TOKEN}} -secret={{.SECRET}} -type={{.TYPE}} -service={{.SERVICE}} -environment={{.ENV}} -subject-type=incident -subject-id={{.SUBJECT_ID}} -actor={{.ACTOR}} {{.FLAGS}}
-    vars:
-      ENDPOINT: ""
-      TOKEN: ""
-      SECRET: ""
-      TYPE: dev.cdevents.incident.opened.0.3.0
-      SERVICE: billing-api
-      ENV: production
-      SUBJECT_ID: incident/inc-1001
-      ACTOR: oncall-bot
-      FLAGS: ""
-
-  load:server:
-    desc: Start isolated DDash server for load tests
-    cmds:
-      - |
-        set -euo pipefail
-        if ss -ltn '( sport = :{{.PORT}} )' | grep -q LISTEN; then
-          echo "Port {{.PORT}} is already in use. Stop existing process or set PORT=<free-port>." >&2
-          exit 1
-        fi
-        mkdir -p tmp
-        go build -o tmp/ddash-load ./apps/ddash
-        DDASH_ENV=dev DDASH_SESSION_SECRET=loadtest-session-secret DDASH_PORT={{.PORT}} DDASH_DB_PATH=tmp/loadtest tmp/ddash-load > /tmp/ddash-load.log 2>&1 & echo $! > /tmp/ddash-load.pid
-        for i in $(seq 1 40); do
-          if curl -fsS http://localhost:{{.PORT}}/login >/dev/null 2>&1; then
-            echo "Load-test server ready on :{{.PORT}}"
-            exit 0
-          fi
-          sleep 1
-        done
-        echo "Server did not start in time. Check /tmp/ddash-load.log" >&2
-        exit 1
-    vars:
-      PORT: 19090
-
-  load:stop:
-    desc: Stop isolated DDash load-test server
-    cmds:
-      - |
-        if [ -f /tmp/ddash-load.pid ]; then
-          kill "$(cat /tmp/ddash-load.pid)" 2>/dev/null || true
-          rm -f /tmp/ddash-load.pid
-        fi
-        pkill -f "tmp/ddash-load" 2>/dev/null || true
-
-  load:seed:
-    desc: Seed org/user baseline for load tests
-    cmds:
-      - |
-        sqlite3 "tmp/loadtest.sqlite" "
-        INSERT OR IGNORE INTO organizations (id,name,auth_token,join_code,webhook_secret,enabled)
-        VALUES (9001,'loadtest-org','loadtest-token-01','loadtest-join-01','loadtest-secret-01',1);
-        UPDATE organizations SET
-          name='loadtest-org',
-          auth_token='loadtest-token-01',
-          join_code='loadtest-join-01',
-          webhook_secret='loadtest-secret-01',
-          enabled=1
-        WHERE id=9001;
-
-        INSERT OR IGNORE INTO users (id,github_id,email,nickname,name,avatar_url)
-        VALUES (9001,'loadtest-admin','loadtest-admin@example.local','loadtest-admin','Load Test Admin','');
-        UPDATE users SET github_id='loadtest-admin', nickname='loadtest-admin', name='Load Test Admin'
-        WHERE email='loadtest-admin@example.local';
-
-        INSERT OR IGNORE INTO organization_members (organization_id,user_id,role)
-        SELECT 9001,id,'owner' FROM users WHERE email='loadtest-admin@example.local';
-        UPDATE organization_members SET role='owner'
-        WHERE organization_id=9001 AND user_id=(SELECT id FROM users WHERE email='loadtest-admin@example.local');
-        "
-      - go run ./apps/eventpublisher -endpoint=http://localhost:{{.PORT}} -token=loadtest-token-01 -secret=loadtest-secret-01 -type=service.deployed -service=orders -environment=staging -artifact=pkg:generic/orders@seed1
-      - go run ./apps/eventpublisher -endpoint=http://localhost:{{.PORT}} -token=loadtest-token-01 -secret=loadtest-secret-01 -type=service.deployed -service=orders -environment=production -artifact=pkg:generic/orders@seed2
-      - go run ./apps/eventpublisher -endpoint=http://localhost:{{.PORT}} -token=loadtest-token-01 -secret=loadtest-secret-01 -type=service.deployed -service=billing -environment=staging -artifact=pkg:generic/billing@seed1
-    vars:
-      PORT: 19090
-
-  load:test:ingest:
-    desc: Run k6 ingest load scenario
-    cmds:
-      - BASE_URL=http://localhost:{{.PORT}} AUTH_TOKEN=loadtest-token-01 WEBHOOK_SECRET=loadtest-secret-01 INGEST_INCLUDE_CUSTOM_TYPES={{.INCLUDE_CUSTOM_TYPES}} k6 run loadtest/ingest.js
-    vars:
-      PORT: 19090
-      INCLUDE_CUSTOM_TYPES: false
-
-  load:test:read:
-    desc: Run k6 read load scenario
-    cmds:
-      - BASE_URL=http://localhost:{{.PORT}} k6 run loadtest/read.js
-    vars:
-      PORT: 19090
-
-  load:test:mixed:
-    desc: Run k6 mixed read and ingest scenario
-    cmds:
-      - BASE_URL=http://localhost:{{.PORT}} AUTH_TOKEN=loadtest-token-01 WEBHOOK_SECRET=loadtest-secret-01 k6 run loadtest/mixed.js
-    vars:
-      PORT: 19090
-
-  load:report:
-    desc: Show quick pointers to load-test logs
-    cmds:
-      - ls /tmp/ddash-load.log
-      - sqlite3 "tmp/loadtest.sqlite" "SELECT COUNT(*) AS event_store_rows FROM event_store;"
-
-  load:all:
-    desc: Run full local load-test flow (server, seed, ingest, read, mixed, report, stop)
-    cmds:
-      - |
-        set -euo pipefail
-        cleanup() {
-          task load:stop >/dev/null 2>&1 || true
-        }
-        trap cleanup EXIT
-
-        task load:server PORT={{.PORT}}
-        task load:seed PORT={{.PORT}}
-        task load:test:ingest PORT={{.PORT}}
-        task load:test:read PORT={{.PORT}}
-        task load:test:mixed PORT={{.PORT}}
-        task load:report
-        cleanup
-        trap - EXIT
-    vars:
-      PORT: 19090
-
-  e2e:
-    desc: Run local end-to-end Playwright checklist suite
-    cmds:
-      - |
-        set -euo pipefail
-
-        if ss -ltn '( sport = :{{.PORT}} )' | grep -q LISTEN; then
-          echo "Port {{.PORT}} is already in use. Stop the existing process or run: task e2e PORT=<free-port>." >&2
-          exit 1
-        fi
-
-        mkdir -p tmp
-        db_path="tmp/e2e-{{.PORT}}"
-        server_bin="tmp/ddash-e2e"
-        server_log="/tmp/ddash-e2e-{{.PORT}}.log"
-        pid_file="/tmp/ddash-e2e-{{.PORT}}.pid"
-        base_url="http://localhost:{{.PORT}}"
-
-        cleanup() {
-          if [ -f "$pid_file" ]; then
-            kill "$(cat "$pid_file")" 2>/dev/null || true
-            rm -f "$pid_file"
-          fi
-          pkill -f "$server_bin" 2>/dev/null || true
-        }
-        trap cleanup EXIT
-
-        go build -o "$server_bin" ./apps/ddash
-        DDASH_ENV=dev DDASH_SESSION_SECRET=e2e-session-secret DDASH_PORT={{.PORT}} DDASH_DB_PATH="$db_path" "$server_bin" > "$server_log" 2>&1 &
-        echo "$!" > "$pid_file"
-
-        for i in $(seq 1 40); do
-          if curl -fsS "$base_url/login" >/dev/null 2>&1; then
-            break
-          fi
-          if [ "$i" -eq 40 ]; then
-            echo "Server did not start in time. Check $server_log" >&2
-            exit 1
-          fi
-          sleep 1
-        done
-
-        sqlite3 "${db_path}.sqlite" "
-        INSERT OR IGNORE INTO organizations (id,name,auth_token,join_code,webhook_secret,enabled)
-        VALUES (2001,'e2e-org','e2eauthtoken01','e2ejoincode01','e2esecret01',1);
-        UPDATE organizations SET
-          name='e2e-org',
-          auth_token='e2eauthtoken01',
-          join_code='e2ejoincode01',
-          webhook_secret='e2esecret01',
-          enabled=1
-        WHERE id=2001;
-
-        INSERT OR IGNORE INTO users (id,github_id,email,nickname,name,avatar_url)
-        VALUES (3001,'e2e-admin','e2e-admin@example.local','e2e-admin','E2E Admin','');
-        UPDATE users SET github_id='e2e-admin', nickname='e2e-admin', name='E2E Admin'
-        WHERE email='e2e-admin@example.local';
-
-        INSERT OR IGNORE INTO organization_members (organization_id,user_id,role)
-        SELECT 2001,id,'owner' FROM users WHERE email='e2e-admin@example.local';
-        UPDATE organization_members SET role='owner'
-        WHERE organization_id=2001 AND user_id=(SELECT id FROM users WHERE email='e2e-admin@example.local');
-
-        DELETE FROM organization_join_requests
-        WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-joiner-%@example.local' OR email LIKE 'e2e-reject-%@example.local');
-        DELETE FROM organization_members
-        WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-joiner-%@example.local' OR email LIKE 'e2e-reject-%@example.local');
-        "
-
-        go run ./apps/eventpublisher -endpoint "$base_url" -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment staging -artifact pkg:generic/orders@a1
-        go run ./apps/eventpublisher -endpoint "$base_url" -token e2eauthtoken01 -secret e2esecret01 -type service.upgraded -service orders -environment staging -artifact pkg:generic/orders@a2
-        go run ./apps/eventpublisher -endpoint "$base_url" -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service orders -environment production -artifact pkg:generic/orders@p1
-        go run ./apps/eventpublisher -endpoint "$base_url" -token e2eauthtoken01 -secret e2esecret01 -type service.deployed -service billing -environment staging -artifact pkg:generic/billing@b1
-
-        npm ci
-        npx playwright install chromium
-
-        status=0
-        E2E_BASE_URL="$base_url" npx playwright test tests/e2e/smoke.spec.js --reporter=list || status=$?
-        cleanup
-        trap - EXIT
-        exit "$status"
-    vars:
-      PORT: 18080
-
-  mvp:check:quick:
-    desc: Run fast automated MVP checks (build/test/helm)
-    cmds:
-      - go tool sqlc generate
-      - go tool github.com/vektra/mockery/v3
-      - templ generate
-      - go build ./...
-      - go test ./...
-      - helm lint ./deploy/helm/ddash
-      - helm template ddash ./deploy/helm/ddash >/tmp/ddash-helm-mvp-render.yaml
-
-  mvp:check:full:
-    desc: Run full automated MVP checks including Playwright
-    cmds:
-      - task mvp:check:quick
-      - task e2e
-
-  mvp:final:tasks:
-    desc: Open final manual MVP checklist path
-    cmds:
-      - ls docs/operations/mvp-final-checklist.md
-
-  remote:install-systemd:
-    desc: Install DDash as a systemd service on remote host
-    cmds:
-      - sudo ./scripts/remote/install-systemd.sh --service-name {{.SERVICE}} --app-dir {{.APP_DIR}} --user {{.USER}} --group {{.GROUP}} --env-file {{.ENV_FILE}}
-    vars:
-      SERVICE: ddash
-      APP_DIR: /opt/ddash
-      USER: ddash
-      GROUP: ddash
-      ENV_FILE: /etc/ddash/ddash.env
-
-  remote:deploy:
-    desc: Build and deploy DDash + GitHub ingestor over SSH
-    deps:
-      - generate
-    cmds:
-      - go build -o tmp/ddash ./apps/ddash
-      - go build -o tmp/githubappingestor ./apps/githubappingestor
-      - ssh {{.SSH_TARGET}} "mkdir -p /tmp/ddash-deploy"
-      - rsync -az tmp/ddash {{.SSH_TARGET}}:/tmp/ddash-deploy/ddash
-      - rsync -az tmp/githubappingestor {{.SSH_TARGET}}:/tmp/ddash-deploy/githubappingestor
-      - rsync -az {{.DDASH_ENV_SOURCE}} {{.SSH_TARGET}}:/tmp/ddash-deploy/ddash.env
-      - rsync -az {{.INGESTOR_ENV_SOURCE}} {{.SSH_TARGET}}:/tmp/ddash-deploy/githubappingestor.env
-      - rsync -az scripts/remote/install-systemd.sh {{.SSH_TARGET}}:/tmp/ddash-deploy/install-systemd.sh
-      - ssh {{.SSH_TARGET}} "chmod +x /tmp/ddash-deploy/install-systemd.sh && sudo mkdir -p {{.DDASH_APP_DIR}} {{.DDASH_APP_DIR}}/tmp {{.DDASH_APP_DIR}}/scripts/remote {{.INGESTOR_APP_DIR}} {{.INGESTOR_APP_DIR}}/tmp {{.INGESTOR_APP_DIR}}/scripts/remote && sudo install -m 0755 /tmp/ddash-deploy/ddash {{.DDASH_APP_DIR}}/tmp/ddash && sudo install -m 0755 /tmp/ddash-deploy/githubappingestor {{.INGESTOR_APP_DIR}}/tmp/githubappingestor && sudo install -m 0755 /tmp/ddash-deploy/install-systemd.sh {{.DDASH_APP_DIR}}/scripts/remote/install-systemd.sh && sudo install -m 0755 /tmp/ddash-deploy/install-systemd.sh {{.INGESTOR_APP_DIR}}/scripts/remote/install-systemd.sh && sudo mkdir -p \"$(dirname {{.DDASH_ENV_FILE}})\" \"$(dirname {{.INGESTOR_ENV_FILE}})\" && sudo install -m 0640 /tmp/ddash-deploy/ddash.env {{.DDASH_ENV_FILE}} && sudo install -m 0640 /tmp/ddash-deploy/githubappingestor.env {{.INGESTOR_ENV_FILE}} && sudo {{.DDASH_APP_DIR}}/scripts/remote/install-systemd.sh --service-name {{.DDASH_SERVICE}} --app-dir {{.DDASH_APP_DIR}} --user {{.DDASH_SERVICE_USER}} --group {{.DDASH_SERVICE_GROUP}} --env-file {{.DDASH_ENV_FILE}} && sudo {{.INGESTOR_APP_DIR}}/scripts/remote/install-systemd.sh --service-name {{.INGESTOR_SERVICE}} --app-dir {{.INGESTOR_APP_DIR}} --user {{.INGESTOR_SERVICE_USER}} --group {{.INGESTOR_SERVICE_GROUP}} --env-file {{.INGESTOR_ENV_FILE}} && sudo systemctl restart {{.DDASH_SERVICE}} {{.INGESTOR_SERVICE}}"
-      - ssh {{.SSH_TARGET}} "rm -rf /tmp/ddash-deploy"
-    vars:
-      SSH_TARGET: hetzner
-      DDASH_APP_DIR: /opt/ddash
-      DDASH_SERVICE: ddash
-      DDASH_SERVICE_USER: ddash
-      DDASH_SERVICE_GROUP: ddash
-      DDASH_ENV_FILE: /etc/ddash/ddash.env
-      DDASH_ENV_SOURCE: .env.prod
-      INGESTOR_APP_DIR: /opt/ddash-githubappingestor
-      INGESTOR_SERVICE: ddash-githubappingestor
-      INGESTOR_SERVICE_USER: ddash
-      INGESTOR_SERVICE_GROUP: ddash
-      INGESTOR_ENV_FILE: /etc/ddash/githubappingestor.env
-      INGESTOR_ENV_SOURCE: .env.githubappingestor.prod
-
-  deploy:all:
-    desc: Deploy all docker-compose services locally
-    cmds:
-      - ./scripts/deploy-all-services.sh
-
-  deploy:all:no-build:
-    desc: Restart all docker-compose services without rebuilding
-    cmds:
-      - ./scripts/deploy-all-services.sh --no-build
-
-  package:eventpublisher:test:
-    desc: Run tests for exported eventpublisher module
-    cmds:
-      - go test ./...
-    dir: packages/eventpublisher
-
-  sqlc:
-    desc: Regenerate sqlc query code
-    cmds:
-      - go tool sqlc generate
-
-  mocks:
-    desc: Regenerate test mocks via mockery
-    cmds:
-      - go tool github.com/vektra/mockery/v3
-
-  fmt:
-    desc: Format Go code
-    cmds:
-      - gofmt -w .
-
-  vet:
-    desc: Run go vet
-    cmds:
-      - go vet ./...
-
-  lint:
-    desc: Run golangci-lint
-    cmds:
-      - golangci-lint run
-
-  test:
-    desc: Run all tests
-    cmds:
-      - go test ./...
-
-  link:
-    desc: Run golangci-lint (alias)
-    cmds:
-      - golangci-lint run
-
-  generate:
-    desc: Run all code generation tasks
-    deps:
-      - sqlc
-      - mocks
-    cmds:
-      - templ generate
-      - npx @tailwindcss/cli -i ./assets/styles.css -o ./apps/ddash/public/styles.css
-
-  check:
-    desc: Run fmt, vet, lint, and tests
-    deps:
-      - fmt
-      - vet
-      - lint
-      - test
-
-  ci:
-    desc: Run CI pipeline checks (sqlc, build, test)
-    cmds:
-      - task sqlc
-      - go build ./...
-      - task test
+  app_github_ingestor_tasks:
+    taskfile: ./taskfiles/apps/githubappingestor.yml
+    flatten: true
+  app_gitlab_ingestor_tasks:
+    taskfile: ./taskfiles/apps/gitlabingestor.yml
+    flatten: true
+  app_webhookgenerator_tasks:
+    taskfile: ./taskfiles/apps/webhookgenerator.yml
+    flatten: true
+  app_eventpublisher_tasks:
+    taskfile: ./taskfiles/apps/eventpublisher.yml
+    flatten: true
+  app_eventbackfill_tasks:
+    taskfile: ./taskfiles/apps/eventbackfill.yml
+    flatten: true
+  app_dbshape_tasks:
+    taskfile: ./taskfiles/apps/dbshape.yml
+    flatten: true
+  app_projectionsync_tasks:
+    taskfile: ./taskfiles/apps/projectionsync.yml
+    flatten: true
+  events_tasks:
+    taskfile: ./taskfiles/events.yml
+    flatten: true
+  loadtest_tasks:
+    taskfile: ./taskfiles/loadtest.yml
+    flatten: true
+  e2e_tasks:
+    taskfile: ./taskfiles/e2e.yml
+    flatten: true
+  mvp_tasks:
+    taskfile: ./taskfiles/mvp.yml
+    flatten: true
+  remote_tasks:
+    taskfile: ./taskfiles/remote.yml
+    flatten: true
+  deploy_tasks:
+    taskfile: ./taskfiles/deploy.yml
+    flatten: true
+  quality_tasks:
+    taskfile: ./taskfiles/quality.yml
+    flatten: true
+  package_tasks:
+    taskfile: ./taskfiles/package.yml
+    flatten: true
