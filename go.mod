@@ -6,9 +6,10 @@ require (
 	github.com/a-h/templ v0.3.977
 	github.com/cdevents/sdk-go v0.4.2-0.20260213121459-a54a820329ec
 	github.com/cloudevents/sdk-go/v2 v2.16.2
+	github.com/google/go-github/v81 v81.0.0
 	github.com/gorilla/sessions v1.4.0
 	github.com/joho/godotenv v1.5.1
-	github.com/labstack/echo/v4 v4.15.0
+	github.com/labstack/echo/v4 v4.15.1
 	github.com/markbates/goth v1.82.0
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/samber/slog-echo v1.19.1
@@ -51,7 +52,6 @@ require (
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/google/cel-go v0.26.1 // indirect
-	github.com/google/go-github/v81 v81.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/context v1.1.1 // indirect
