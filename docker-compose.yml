@@ -42,7 +42,7 @@ services:
       DDASH_ENDPOINT: ${DDASH_PUBLIC_URL:-http://ddash:8080}
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.130.1
+    image: otel/opentelemetry-collector-contrib:0.146.1
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./deploy/observability/otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
