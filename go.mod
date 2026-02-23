@@ -7,6 +7,7 @@ require (
 	github.com/cdevents/sdk-go v0.4.2-0.20260213121459-a54a820329ec
 	github.com/cloudevents/sdk-go/v2 v2.16.2
 	github.com/google/go-github/v81 v81.0.0
+	github.com/google/go-github/v83 v83.0.0
 	github.com/gorilla/sessions v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.15.1
