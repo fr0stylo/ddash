@@ -3,7 +3,7 @@ module github.com/fr0stylo/ddash
 go 1.26
 
 require (
-	github.com/a-h/templ v0.3.977
+	github.com/a-h/templ v0.3.1020
 	github.com/cdevents/sdk-go v0.4.2-0.20260213121459-a54a820329ec
 	github.com/cloudevents/sdk-go/v2 v2.16.2
 	github.com/google/go-github/v81 v81.0.0
@@ -127,7 +127,7 @@ require (
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/mod v0.33.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
